@@ -1,0 +1,49 @@
+{
+    "_meta": {
+        "hash": {
+            "sha256": "82e2980fbc8bee322deb5628acf3c85034839824b4c5715f4fe21a40d3de1afb"
+        },
+        "host-environment-markers": {
+            "implementation_name": "cpython",
+            "implementation_version": "0",
+            "os_name": "posix",
+            "platform_machine": "x86_64",
+            "platform_python_implementation": "CPython",
+            "platform_release": "4.13.3-1-ARCH",
+            "platform_system": "Linux",
+            "platform_version": "#1 SMP PREEMPT Thu Sep 21 20:33:16 CEST 2017",
+            "python_full_version": "2.7.14",
+            "python_version": "2.7",
+            "sys_platform": "linux2"
+        },
+        "pipfile-spec": 6,
+        "requires": {
+            "python_version": "2.7"
+        },
+        "sources": [
+            {
+                "name": "pypi",
+                "url": "https://pypi.python.org/simple",
+                "verify_ssl": true
+            }
+        ]
+    },
+    "default": {
+        "docopt": {
+            "hashes": [
+                "sha256:49b3a825280bd66b3aa83585ef59c4a8c82f2c8a522dbe754a8bc8d08c85c491"
+            ],
+            "version": "==0.6.2"
+        },
+        "pyroute2": {
+            "hashes": [
+                "sha256:7afad28ee0a0f3e7c34adaa9f953d00560ed9910203e93f107833b6e8d151171"
+            ],
+            "version": "==0.4.21"
+        },
+        "scapy": {
+            "git": "https://github.com/Zashas/scapy.git"
+        }
+    },
+    "develop": {}
+}
