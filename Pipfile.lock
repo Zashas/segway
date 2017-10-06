@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "82e2980fbc8bee322deb5628acf3c85034839824b4c5715f4fe21a40d3de1afb"
+            "sha256": "915dcc58e352ae5c74d0ddf8c6209fdc47f9bdeffbeb6e560eb2dce6f31089b7"
         },
         "host-environment-markers": {
             "implementation_name": "cpython",
@@ -43,6 +43,13 @@
         },
         "scapy": {
             "git": "https://github.com/Zashas/scapy.git"
+        },
+        "tatsu": {
+            "hashes": [
+                "sha256:02e4c367d98b6bcdf024dcbf0576c66b039ca496615e460ce422b008da58e32a",
+                "sha256:ce61d03cf06db74116ac5800437f12c557fa91bdc19be358c69d4da8af72c691"
+            ],
+            "version": "==4.2.3"
         }
     },
     "develop": {}

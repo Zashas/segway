@@ -12,8 +12,10 @@ class Packet:
     dport, sport = None, None
     payload = None
 
+    icmp_dest_unreach = False
+
     _fields = ("ip_src", "ip_dst", "ip_segs", "ip_segleft", "ip_lastseg",
-               "l4_proto", "dport", "sport", "payload")
+               "l4_proto", "dport", "sport", "payload", "icmp_dest_unreach")
 
     def __init__(self, *args, **kwargs):
         if len(args) > 0 and len(kwargs) > 0 or len(args) > 1:
@@ -24,13 +26,17 @@ class Packet:
             if p.haslayer(IPv6):
                 self.ip_src = p[IPv6].src
                 self.ip_dst = p[IPv6].dst
+            
+            if p.haslayer(ICMPv6DestUnreach):
+                self.icmp_dest_unreach = True
+
             if p.haslayer(IPv6ExtHdrSegmentRouting):
                 self.ip_segs = p[IPv6ExtHdrSegmentRouting].addresses
                 self.ip_segleft = p[IPv6ExtHdrSegmentRouting].segleft
                 self.ip_lastseg = p[IPv6ExtHdrSegmentRouting].lastentry
 
             if p.haslayer(UDP):
-                self.l4_proto = UDP # TODO keep this ? make enum
+                self.l4_proto = "UDP"
                 self.dport = p[UDP].dport
                 self.sport = p[UDP].sport
 
@@ -48,7 +54,11 @@ class Packet:
         if self.payload:
             pkt = Raw(self.payload)
         if self.l4_proto:
-            pkt = self.l4_proto(sport=self.sport, dport=self.dport) / pkt
+            if self.l4_proto == "UDP":
+                pkt = UDP(sport=self.sport, dport=self.dport) / pkt
+            elif self.l4_proto == "TCP":
+                pkt = TCP(sport=self.sport, dport=self.dport) / pkt
+
         if self.ip_segs:
             srh = IPv6ExtHdrSegmentRouting(addresses=self.ip_segs,
                                            segleft=self.ip_segleft, lastentry=self.ip_lastseg)
@@ -77,6 +87,9 @@ class Packet:
         ip = "{} -> {}".format(_(self.ip_src), _(self.ip_dst))
         protos = [ip]
 
+        if self.icmp_dest_unreach:
+            protos.append("ICMPv6 Destination Unreachable")
+
         if self.ip_segs:
             ip_segs = self.ip_segs[:]
             if self.ip_segleft is not None and self.ip_segleft < len(ip_segs):
@@ -86,10 +99,7 @@ class Packet:
             protos.append(srh)
 
         if self.l4_proto:
-            l4 = "L4"
-            if self.l4_proto == UDP:
-                l4 = "UDP({}, {})".format(_(self.sport), _(self.dport))
-
+            l4 = "{}({}, {})".format(self.l4_proto, _(self.sport), _(self.dport))
             protos.append(l4)
 
             if self.payload:
@@ -255,7 +265,7 @@ class TestSuite:
             if e.type == Event.RECV:
                 if not e.succeeded:
                     if not e.pkt_recv:
-                        print("Missing packet.")
+                        print("Missing packet #{}.".format(nb_recv+1))
                         print("\tExpected : {}".format(str(e.pkt)))
                         nb_miss += 1
                     else:
@@ -266,10 +276,11 @@ class TestSuite:
                 else:
                     nb_ok += 1
                     if show_succeeded:
-                        print("Packet #{} correctly received.".format(n))
+                        print("Packet #{} correctly received.".format(nb_recv+1))
                         print("\tExpected : {}".format(str(e.pkt)))
                         print("\tReceived : {}".format(str(e.pkt_recv)))
 
                 nb_recv += 1
 
+        print("")
         print("Statistics : {ok}/{nb} OK, {nok}/{nb} incorrect, {miss}/{nb} missing".format(ok=nb_ok, nb=nb_recv, nok=nb_nok, miss=nb_miss))
