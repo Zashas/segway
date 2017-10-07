@@ -34,7 +34,7 @@ class TestSuite:
         if e.type == Event.PKT:
             if e.expected_answer:
                 self.waiting_answer = True
-                self.timer = threading.Timer(1.0, lambda: self.answer_timeout)
+                self.timer = threading.Timer(1.0, self.answer_timeout)
                 self.timer.start()
             else:
                 self.sem_receiving.release()
@@ -46,7 +46,7 @@ class TestSuite:
         return e
 
     def answer_timeout(self):
-        e = self.events[self.cur_event_id]
+        e = self.events[self.cur_event_id-1]
         self.answers.append((None, e.expected_answer))
         self.waiting_answer = False
         self.sem_receiving.release()
