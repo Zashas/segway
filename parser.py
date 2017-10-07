@@ -3,14 +3,14 @@
 
 import tatsu
 
-from tests import Packet, Event
+from structs import Packet, Event
 
 grammar = """
 
 start = {operation}+ $ ;
 
-operation = '>' packet
-         | '<' packet
+operation = '>' pkt:packet '<' answer:packet
+         | '<' pkt:packet
          | 'add route'
          | 'del route'
          | '#' {/\S/|' '}+;
@@ -38,8 +38,8 @@ ip6_addr = ( /([a-f]|\d|:)+/ | '*');
 
 word = /\w+/;
 number = /\d+/;
-
 """
+# TODO add comments
 
 
 model = tatsu.compile(grammar)
@@ -53,12 +53,12 @@ def parse(string):
         e = Event()
         events.append(e)
 
-        if op[0] == ">":
-            e.type = Event.SEND
-            e.pkt = parse_packet(op[1])
-        elif op[1] == "<":
-            e.type = Event.RECV
-            e.pkt = parse_packet(op[1])
+        if "pkt" in op:
+            e.type = Event.PKT
+            e.pkt = parse_packet(op["pkt"])
+
+            if "answer" in op:
+                e.expected_answer = parse_packet(op["answer"])
 
     return events
 
@@ -102,7 +102,6 @@ def parse_packet(ast):
 
     if ast['payload']:
         pkt.payload = ast['payload'][1:-1]
-    print(str(pkt))
 
     return pkt
 
@@ -113,7 +112,7 @@ if __name__ == '__main__':
     s5 = "> fc00::2 -> fc00::1 / [fc00::1,+fd00::42 ]"
     s6 = "> fc00::2 -> fc00::1"
     s = """> fc00::2 -> fc00::1 / [fc00::1, +fd00::42 ]
-> fc00::2 -> fc00::1 / [fc00::1,fd00::42] <sl 0, le 1>
+    > fc00::2 -> fc00::1 / [fc00::1,fd00::42] <sl 0, le 1>
 > fc00::2 -> fc00::1 / [+fc00::1,fd00::42] <sl 0, le 2> / UDP(4242, 4242) / \"test\"
 > fc00::2 -> fc00::1 / [+fc00::1,fd00::42] <sl 1, le 1> / UDP / \"Coucou\"
 > fc00::2 -> *"""

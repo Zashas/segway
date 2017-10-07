@@ -5,7 +5,7 @@
 segway - Testing framework for IPv6 segment routing on Linux
 
 Usage:
-    segway.py [<test>] [--ns=<ns_name>] [-k] [-r] [-p]
+    segway.py <tests> [--ns=<ns_name>] [-k] [-r] [-p]
     segway.py (-h | --help)
 
 Options:
@@ -23,7 +23,8 @@ from docopt import docopt
 import threading, sys, time, select
 
 from ns import create_ns, use_ns, delete_ns, add_route, add_interfaces, NetNSError
-from tests import TestSuite, Event
+from tests import TestSuite
+from structs import Event
 
 DEFAULT_NS_NAME = "segway"
 
@@ -88,12 +89,12 @@ def run(test_file, reuse_ns=False, keep_ns=False, ns=DEFAULT_NS_NAME, show_succe
         sem_sniff.acquire()
         tun = TunTapInterface("tun0")
 
-        while suite.firing_events:
+        while 1:
             try:
                 e = suite.get_event()
             except LookupError:
                 break
-            if e.type == Event.SEND:
+            if e.type == Event.PKT:
                 tun.send(e.pkt.build())
 
         suite.sem_completed.acquire()
@@ -115,6 +116,6 @@ if __name__ == '__main__':
         print(__doc__)
         sys.exit(0)
 
-    run(arguments['<test>'],
+    run(arguments['<tests>'],
             reuse_ns=arguments['-r'], keep_ns=arguments['-k'],
             ns=arguments['--ns'], show_succeeded=arguments['-p'])
