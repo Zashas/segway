@@ -5,7 +5,7 @@
 segway - Testing framework for IPv6 segment routing on Linux
 
 Usage:
-    segway.py <tests> [--ns=<ns_name>] [-k] [-r] [-p]
+    segway.py <path_to_tests> [--ns=<ns_name>] [-k] [-r] [-p]
     segway.py (-h | --help)
 
 Options:
@@ -122,6 +122,6 @@ if __name__ == '__main__':
         print(__doc__)
         sys.exit(0)
 
-    run(arguments['<tests>'],
+    run(arguments['<path_to_tests>'],
             reuse_ns=arguments['-r'], keep_ns=arguments['-k'],
             ns=arguments['--ns'], show_succeeded=arguments['-p'])

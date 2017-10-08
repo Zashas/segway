@@ -3,6 +3,9 @@
 > fc00::1 -> fc00::42 / UDP(4242,51) / "foobar"
 < fc00::1 -> fc00::42 / UDP(4242,51) / "foobar"
 
+# Packets are described like this :
+# IP src addr -> IP dest addr / [seg0, seg1, +seg2, ...] / UDP(sport, dport) / "payload"
+
 # Same example, but now ignoring some fields
 > fc00::1 -> fc00::42 / UDP(4242,51) / "foobar"
 < * -> fc00::42 / UDP(*,51) / *
