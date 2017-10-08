@@ -86,6 +86,7 @@ def parse_packet(ast):
                 srh.segleft = i
 
             segs.append(seg)
+        srh.addresses = segs
 
         srh.lastentry = len(ast['srh']['segs'])-1
 
@@ -93,9 +94,9 @@ def parse_packet(ast):
             for i,name in enumerate(ast['srh']['options']['names']):
                 val = ast['srh']['options']['values'][i]
                 if name == "sl":
-                    srh.segleft = val
+                    srh.segleft = int(val)
                 elif name == "le":
-                    srh.lastentry = val
+                    srh.lastentry = int(val)
 
         pkt = pkt / srh
 
@@ -106,8 +107,8 @@ def parse_packet(ast):
         elif proto == "TCP":
             transport = TCP()
 
-        transport.sport = ast['trans']['sport'] # TODO if ?
-        transport.dport = ast['trans']['dport']
+        transport.sport = int(ast['trans']['sport']) # TODO if ?
+        transport.dport = int(ast['trans']['dport'])
 
         pkt = pkt / transport
 
