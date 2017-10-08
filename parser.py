@@ -3,7 +3,8 @@
 
 import tatsu
 
-from structs import Packet, Event
+from structs import Event
+from scapy.all import IPv6, IPv6ExtHdrSegmentRouting, UDP, TCP, Raw
 
 grammar = """
 
@@ -69,39 +70,50 @@ def validate_ip6(addr):
     return addr #TODO
 
 def parse_packet(ast):
-    pkt = Packet()
-    pkt.ip_src = validate_ip6(ast['ip'][0])
-    pkt.ip_dst = validate_ip6(ast['ip'][2])
+    pkt = IPv6()
+    pkt.src = validate_ip6(ast['ip'][0])
+    pkt.dst = validate_ip6(ast['ip'][2])
 
     if ast['srh']:
-        pkt.ip_segs = []
+        srh = IPv6ExtHdrSegmentRouting()
+        segs = []
         for i,seg in enumerate(ast['srh']['segs']):
             active = ast['srh']['segs_active'][i]
 
             if active == '+':
-                if pkt.ip_segleft:
+                if srh.segleft:
                     raise SyntaxError("Two segments have been defined as active.")
-                pkt.ip_segleft = i
+                srh.segleft = i
 
-            pkt.ip_segs.append(seg)
+            segs.append(seg)
 
-        pkt.ip_lastseg = len(ast['srh']['segs'])-1
+        srh.lastentry = len(ast['srh']['segs'])-1
 
         if ast['srh']['options']:
             for i,name in enumerate(ast['srh']['options']['names']):
                 val = ast['srh']['options']['values'][i]
                 if name == "sl":
-                    pkt.ip_segleft = val
+                    srh.segleft = val
                 elif name == "le":
-                    pkt.ip_lastseg = val
+                    srh.lastentry = val
+
+        pkt = pkt / srh
 
     if ast['trans']:
-        pkt.l4_proto = ast['trans']['proto']
-        pkt.sport = ast['trans']['sport']
-        pkt.dport = ast['trans']['dport']
+        proto = ast['trans']['proto']
+        if proto == "UDP":
+            transport = UDP()
+        elif proto == "TCP":
+            transport = TCP()
+
+        transport.sport = ast['trans']['sport'] # TODO if ?
+        transport.dport = ast['trans']['dport']
+
+        pkt = pkt / transport
 
     if ast['payload']:
-        pkt.payload = ast['payload'][1:-1]
+        payload = Raw(ast['payload'][1:-1])
+        pkt = pkt / payload
 
     return pkt
 

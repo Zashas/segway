@@ -3,7 +3,7 @@
 
 import threading, os
 
-from structs import Packet, Event
+from structs import pkt_match, pkt_str, Event
 from parser import parse
 
 class TestSuite:
@@ -55,12 +55,12 @@ class TestSuite:
         """ Process packets from the sniffer """
 
         if not self.waiting_answer:
-            print("Dropped unexpected packet : {}".format(str(Packet(pkt))))
+            print("Dropped unexpected packet : {}".format(pkt_str(pkt)))
             return
 
         self.timer.cancel()
         e = self.events[self.cur_event_id-1]
-        self.answers.append((Packet(pkt), e.expected_answer))
+        self.answers.append((pkt, e.expected_answer))
         self.waiting_answer = False
         self.sem_receiving.release()
 
@@ -72,13 +72,13 @@ class TestSuite:
             recv, expect = ans
             if recv == None:
                 print("Packet #{} missing.".format(i+1))
-                print("\tExpected : {}".format(str(expect)))
+                print("\tExpected : {}".format(pkt_str(expect)))
                 nb_miss += 1
                 written = True
-            elif not expect.match(recv):
+            elif not pkt_match(expect, recv):
                 print("Incorrect packet received instead of packet #{}.".format(i+1))
-                print("\tExpected : {}".format(str(expect)))
-                print("\tReceived : {}".format(str(recv)))
+                print("\tExpected : {}".format(pkt_str(expect)))
+                print("\tReceived : {}".format(pkt_str(recv)))
                 nb_nok += 1
                 written = True
 
@@ -86,8 +86,8 @@ class TestSuite:
                 nb_ok += 1
                 if show_succeeded:
                     print("Packet #{} correctly received.".format(i+1))
-                    print("\tExpected : {}".format(str(expect)))
-                    print("\tReceived : {}".format(str(recv)))
+                    print("\tExpected : {}".format(pkt_str(expect)))
+                    print("\tReceived : {}".format(pkt_str(recv)))
                     written = True
 
         if written:

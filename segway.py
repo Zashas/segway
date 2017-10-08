@@ -95,6 +95,7 @@ def run(test_file, reuse_ns=False, keep_ns=False, ns=DEFAULT_NS_NAME, show_succe
             except LookupError:
                 break
             if e.type == Event.PKT:
+                print(e.pkt.summary())
                 tun.send(e.pkt.build())
 
         suite.sem_completed.acquire()
