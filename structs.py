@@ -10,7 +10,8 @@ def pkt_match(expected, actual):
 
     fields = {
         IPv6: ('src', 'dst'),
-        IPv6ExtHdrSegmentRouting: ('addresses', 'lastentry', 'segleft'),
+        IPv6ExtHdrSegmentRouting: ('addresses', 'lastentry', 'segleft', 'tag',
+            'unused1', 'protected', 'oam', 'alert', 'hmac', 'unused2'), # Flags
         TCP: ('sport', 'dport'),
         UDP: ('sport', 'dport'),
         Raw: ('load',)
@@ -41,11 +42,26 @@ def pkt_str(pkt):
     _ = lambda x: x if x != WILDCARD else "*"
 
     def srh_str(srh):
+        from collections import OrderedDict
+
         segs = list(srh.addresses)
-        if srh.segleft is not None and srh.segleft < len(segs):
+        if srh.segleft < len(segs):
             segs[srh.segleft] = "+"+segs[srh.segleft]
 
-        return "[{}] <sl {}, le {}>".format(",".join(srh.addresses), srh.segleft, srh.lastentry)
+        options = OrderedDict((('sl',srh.segleft), ('le',srh.lastentry)))
+
+        if srh.tag:
+            options['tag'] = srh.tag
+        flags = ""
+        fl_mapping = {'oam':'O', 'hmac':'H', 'alert':'A','protected':'P'} # TODO organiser selon draft
+        for key,val in fl_mapping.items():
+            if getattr(srh,key) == 1:
+                flags += val
+
+        if flags != "":
+            options['fl'] = flags
+
+        return "[{}] <{}>".format(",".join(segs), ",".join(map(lambda key: "{} {}".format(key, options[key]),options)))
 
     def ip_str(ip):
         return  "{} -> {}".format(_(ip.src), _(ip.dst))

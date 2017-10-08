@@ -7,7 +7,21 @@
 < * -> fc00::42 / UDP(*,51) / *
 
 # fd00::42 is the IP address of the router
+# The "+" in front of a segment indicates that the segments on its left are still unprocessed (i.e. sets segment left)
+# The last entry field is automatically set depending on the number of segments
 > fc00::2 -> fd00::42 / [fc00::1,+fd00::42]
 < fc00::2 -> fc00::1  / [+fc00::1,fd00::42]
+
+# One can also specifically set the following parameters of the SRH (segment left, last entry, tag, flags)
+> fc00::2 -> fd00::42 / [fc00::1,fd00::42] <sl 1, le 1, tag 71, fl PO>
+< fc00::2 -> fc00::1  / [fc00::1,fd00::42] <sl 0, le 1, tag 71, fl PO>
+
+# Example of an IPv6 encapsulation
+> fc00::1 -> fc00::42 / beef::1337 -> babe::8
+< fc00::1 -> fc00::42 / beef::1337 -> babe::8
+
+# Encapsulation also works with a SRH !
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42] / beef::1337 -> babe::8 / UDP / "Hello"
+< fc00::2 -> fc00::1  / [+fc00::1,fd00::42] / beef::1337 -> * / UDP / *
 
 

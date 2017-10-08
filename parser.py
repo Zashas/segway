@@ -7,6 +7,8 @@ import tatsu, sys
 from structs import Event, WILDCARD
 from scapy.all import IPv6, IPv6ExtHdrSegmentRouting, UDP, TCP, Raw
 
+SRH_FLAGS = {'P':1, 'O':2, 'A':3, 'H':4}
+
 grammar = """
 start = {operation}+ $ ;
 
@@ -16,7 +18,8 @@ operation = '>' pkt:packet ['<' answer:packet]
          | '#' {/\S/|' '}+;
 
 
-packet = ip:ip6h '/' srh:srh '/' trans:trans '/' payload:payload
+packet = ip:ip6h ['/' srh:srh] '/' encap:packet
+       | ip:ip6h '/' srh:srh '/' trans:trans '/' payload:payload
        | ip:ip6h '/' srh:srh '/' trans:trans
        | ip:ip6h '/' srh:srh
        | ip:ip6h '/' trans:trans '/' payload:payload
@@ -27,7 +30,8 @@ packet = ip:ip6h '/' srh:srh '/' trans:trans '/' payload:payload
 ip6h = ip6_addr '->' ip6_addr;
 
 srh = '[' ','%{ segs_active:seg_active segs:ip6_addr }+ ']' [options:srh_options];
-srh_options = '<' ','%{names:word values:number}+ '>';
+srh_options = '<' ','%{names:word values:(number|srh_flags)}+ '>';
+srh_flags = /(P|O|A|H)+/;
 
 trans = proto:('UDP'|'TCP') ['(' sport:('*'|number) ',' dport:('*'|number) ')'];
 
@@ -67,15 +71,15 @@ def parse(string):
 
     return events
 
-def WILDCARD_error(ast):
-    print("A WILDCARD (*) cannot be used in an injected packet.", file=sys.stderr)
+def raise_parsing_error(msg):
+    print("Parsing error: "+m, file=sys.stderr)
     raise SyntaxError
 
 def parse_packet(ast, for_comparison=False):
     if for_comparison:
         _ = lambda x: WILDCARD if x  == '*' else x
     else:
-        _ = lambda x: WILDCARD_error if x == '*' else x
+        _ = lambda x: raise_parsing_error("a wildcard (*) cannot be used in an injected packet.") if x == '*' else x
 
     pkt = IPv6()
     pkt.src = _(ast['ip'][0])
@@ -89,7 +93,7 @@ def parse_packet(ast, for_comparison=False):
 
             if active == '+':
                 if srh.segleft:
-                    raise SyntaxError("Two segments have been defined as active.")
+                    raise_parsing_error("two segments have been defined as active.")
                 srh.segleft = i
 
             segs.append(seg)
@@ -104,8 +108,25 @@ def parse_packet(ast, for_comparison=False):
                     srh.segleft = int(val)
                 elif name == "le":
                     srh.lastentry = int(val)
+                elif name == "tag":
+                    srh.tag = int(val)
+                elif name == "fl":
+                    for letter in val:
+                        if letter == "P":
+                            srh.protected = 1
+                        elif letter == "O":
+                            srh.oam = 1
+                        elif letter == "A":
+                            srh.alert = 1
+                        elif letter == "H":
+                            srh.hmac = 1
+                else:
+                    raise_parsing_error("unknown SRH option {}".format(name))
 
         pkt = pkt / srh
+
+    if ast['encap']:
+        return pkt / parse_packet(ast['encap'], for_comparison=for_comparison)
 
     if ast['trans']:
         proto = ast['trans']['proto']
@@ -114,6 +135,7 @@ def parse_packet(ast, for_comparison=False):
         elif proto == "TCP":
             transport = TCP()
 
+        transport.sport, transport.dport = 0,0
         if ast['trans']['sport']:
             p = _(ast['trans']['sport'])
             transport.sport = int(p) if p != WILDCARD else p

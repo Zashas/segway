@@ -12,7 +12,7 @@ class TestSuite:
     sem_receiving = threading.Semaphore(1) # Semaphore to wait on a RECV
     sem_completed = threading.Semaphore(0) # Semaphore to wait on when asking the suite to be completed
 
-    answers = [] # (Received, Expected)
+    answers = [] # (Received, Event)
     timer = None
     waiting_answer = False
 
@@ -47,7 +47,7 @@ class TestSuite:
 
     def answer_timeout(self):
         e = self.events[self.cur_event_id-1]
-        self.answers.append((None, e.expected_answer))
+        self.answers.append((None, e))
         self.waiting_answer = False
         self.sem_receiving.release()
 
@@ -60,7 +60,7 @@ class TestSuite:
 
         self.timer.cancel()
         e = self.events[self.cur_event_id-1]
-        self.answers.append((pkt, e.expected_answer))
+        self.answers.append((pkt, e))
         self.waiting_answer = False
         self.sem_receiving.release()
 
@@ -69,15 +69,17 @@ class TestSuite:
         written = False
 
         for i,ans in enumerate(self.answers):
-            recv, expect = ans
+            recv, e = ans
             if recv == None:
                 print("Packet #{} missing.".format(i+1))
-                print("\tExpected : {}".format(pkt_str(expect)))
+                print("\tSent :     {}".format(pkt_str(e.pkt)))
+                print("\tExpected : {}".format(pkt_str(e.expected_answer)))
                 nb_miss += 1
                 written = True
-            elif not pkt_match(expect, recv):
+            elif not pkt_match(e.expected_answer, recv):
                 print("Incorrect packet received instead of packet #{}.".format(i+1))
-                print("\tExpected : {}".format(pkt_str(expect)))
+                print("\tSent :     {}".format(pkt_str(e.pkt)))
+                print("\tExpected : {}".format(pkt_str(e.expected_answer)))
                 print("\tReceived : {}".format(pkt_str(recv)))
                 nb_nok += 1
                 written = True
@@ -86,7 +88,8 @@ class TestSuite:
                 nb_ok += 1
                 if show_succeeded:
                     print("Packet #{} correctly received.".format(i+1))
-                    print("\tExpected : {}".format(pkt_str(expect)))
+                    print("\tSent :     {}".format(pkt_str(e.pkt)))
+                    print("\tExpected : {}".format(pkt_str(e.expected_answer)))
                     print("\tReceived : {}".format(pkt_str(recv)))
                     written = True
 
