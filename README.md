@@ -8,6 +8,7 @@ segways uses Python 2.7 and requires several dependencies, which can be installe
 git clone https://github.com/Zashas/segway.git
 pipenv install
 pipenv shell
+cd segway
 sudo python segway.py tests/example.seg
 ```
 
