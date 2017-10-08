@@ -1,4 +1,5 @@
 # Simple example without segment routing, it just goes through the router
+# Only routes to fc00::/16 are set
 > fc00::1 -> fc00::42 / UDP(4242,51) / "foobar"
 < fc00::1 -> fc00::42 / UDP(4242,51) / "foobar"
 
@@ -23,5 +24,3 @@
 # Encapsulation also works with a SRH !
 > fc00::2 -> fd00::42 / [fc00::1,+fd00::42] / beef::1337 -> babe::8 / UDP / "Hello"
 < fc00::2 -> fc00::1  / [+fc00::1,fd00::42] / beef::1337 -> * / UDP / *
-
-

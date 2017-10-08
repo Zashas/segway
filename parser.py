@@ -7,14 +7,11 @@ import tatsu, sys
 from structs import Event, WILDCARD
 from scapy.all import IPv6, IPv6ExtHdrSegmentRouting, UDP, TCP, Raw
 
-SRH_FLAGS = {'P':1, 'O':2, 'A':3, 'H':4}
-
 grammar = """
 start = {operation}+ $ ;
 
 operation = '>' pkt:packet ['<' answer:packet]
-         | 'add route'
-         | 'del route'
+         | cmd:cmd
          | '#' {/\S/|' '}+;
 
 
@@ -27,7 +24,7 @@ packet = ip:ip6h ['/' srh:srh] '/' encap:packet
        | ip:ip6h;
 
 
-ip6h = ip6_addr '->' ip6_addr;
+ip6h = (ip6_addr|'*') '->' (ip6_addr|'*');
 
 srh = '[' ','%{ segs_active:seg_active segs:ip6_addr }+ ']' [options:srh_options];
 srh_options = '<' ','%{names:word values:(number|srh_flags)}+ '>';
@@ -38,8 +35,12 @@ trans = proto:('UDP'|'TCP') ['(' sport:('*'|number) ',' dport:('*'|number) ')'];
 payload = '*'
         | /"(.*?)"/;
 
+cmd = /`([^`]+)`/;
+
 seg_active = /\+?/;
-ip6_addr = ( /([a-f]|\d|:)+/ | '*');
+ip6_addr = /([a-f]|\d|:)+/;
+ip6_subnet = /([a-f]|\d|:)+\/\d{1,3}/
+           | ip6_addr;
 
 word = /\w+/;
 number = /\d+/;
@@ -62,17 +63,20 @@ def parse(string):
         e = Event()
         events.append(e)
 
-        if "pkt" in op:
+        if op['pkt']:
             e.type = Event.PKT
             e.pkt = parse_packet(op["pkt"])
 
             if op["answer"]:
                 e.expected_answer = parse_packet(op["answer"], for_comparison=True)
+        elif op['cmd']:
+            e.cmd = op['cmd'][1:-1] # stripping both `
+            e.type = Event.CMD
 
     return events
 
 def raise_parsing_error(msg):
-    print("Parsing error: "+m, file=sys.stderr)
+    print("Parsing error: "+msg, file=sys.stderr) # TODO add file and line number to message
     raise SyntaxError
 
 def parse_packet(ast, for_comparison=False):
@@ -88,13 +92,15 @@ def parse_packet(ast, for_comparison=False):
     if ast['srh']:
         srh = IPv6ExtHdrSegmentRouting()
         segs = []
+        segleft_set = False
         for i,seg in enumerate(ast['srh']['segs']):
             active = ast['srh']['segs_active'][i]
 
             if active == '+':
-                if srh.segleft:
+                if segleft_set:
                     raise_parsing_error("two segments have been defined as active.")
                 srh.segleft = i
+                segleft_set = True
 
             segs.append(seg)
         srh.addresses = segs
@@ -148,7 +154,7 @@ def parse_packet(ast, for_comparison=False):
 
     if ast['payload']:
         if ast['payload'] == '*':
-            pkt = pkt / Raw('') # Dirty hack, we suppose that an empty payload matches everything ..
+            pkt = pkt / Raw('')
             pkt[Raw].load = WILDCARD
         else:
             pkt = pkt / Raw(ast['payload'][1:-1])

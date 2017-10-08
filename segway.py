@@ -20,7 +20,7 @@ Options:
 from __future__ import print_function
 from scapy.all import TunTapInterface, ETH_P_ALL
 from docopt import docopt
-import threading, sys, time, select
+import threading, sys, select, subprocess, shlex
 
 from ns import create_ns, use_ns, delete_ns, add_route, add_interfaces, NetNSError
 from tests import TestSuite
@@ -100,6 +100,8 @@ def run(test_file, reuse_ns=False, keep_ns=False, ns=DEFAULT_NS_NAME, show_succe
                 break
             if e.type == Event.PKT:
                 tun.send(e.pkt)
+            elif e.type == Event.CMD:
+                subprocess.call(shlex.split(e.cmd))
 
         suite.sem_completed.acquire()
         th.stop_and_join()

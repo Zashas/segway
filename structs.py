@@ -108,21 +108,15 @@ def pkt_str(pkt):
 
 class Event:
     type = None
-    completed = False
-    blocking = False
 
-    succeeded = False # Has only meaning for RECV
-    timer = None
+    cmd = None #only used if CMD
 
-    route = None
-
-    pkt = None
+    pkt = None # only used if PKT
     answer = None
     expected_answer = None
 
     PKT = 1
-    ADD_RT = 2
-    DEL_RT = 3
+    CMD = 2
 
     def __unicode__(self):
         return self.__str__()
@@ -133,6 +127,8 @@ class Event:
             if self.expected_answer:
                 s += "\n< {}".format(self.expected_answer)
             return s
+        elif self.type == Event.CMD:
+            return "`"+self.cmd+"`"
         else:
             return "Unknown event"
 
