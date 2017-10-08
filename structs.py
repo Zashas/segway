@@ -1,6 +1,10 @@
 #coding: utf-8
 from scapy.all import *
 
+class WILDCARD:
+    """ Used to indicate that some fields in a scapy packet should be ignored when comparing """
+    pass
+
 def pkt_match(expected, actual):
     """ Check if all fields described in packet `expected` match the fields of pkt `actual`' """
 
@@ -27,14 +31,14 @@ def pkt_match(expected, actual):
 
         for field in fields[sub_expected.__class__]:
             # Don't care if field not set in expected packet
-            if getattr(sub_expected, field) and \
+            if getattr(sub_expected, field) != WILDCARD and \
                 getattr(sub_expected, field) != getattr(sub_actual, field):
                     return False
 
         layer += 1
 
 def pkt_str(pkt):
-    _ = lambda x: x if x else "*"
+    _ = lambda x: x if x != WILDCARD else "*"
 
     def srh_str(srh):
         segs = list(srh.addresses)
@@ -57,6 +61,8 @@ def pkt_str(pkt):
         return "TCP"
 
     def payload_str(raw):
+        if raw.load == WILDCARD:
+            return "*"
         return '"{}"'.format(raw.load)
 
 

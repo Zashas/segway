@@ -1,5 +1,13 @@
-> fc00::1 -> fc00::42 / UDP(42,420) / "Coucou"
-< fc00::1 -> fc00::42 / UDP(42,420) / "Coucou"
+# Simple example without segment routing, it just goes through the router
+> fc00::1 -> fc00::42 / UDP(4242,51) / "foobar"
+< fc00::1 -> fc00::42 / UDP(4242,51) / "foobar"
 
+# Same example, but now ignoring some fields
+> fc00::1 -> fc00::42 / UDP(4242,51) / "foobar"
+< * -> fc00::42 / UDP(*,51) / *
+
+# fd00::42 is the IP address of the router
 > fc00::2 -> fd00::42 / [fc00::1,+fd00::42]
-< fc00::2 -> fc00::1 /  [+fc00::1,fd00::42]
+< fc00::2 -> fc00::1  / [+fc00::1,fd00::42]
+
+

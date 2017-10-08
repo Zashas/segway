@@ -54,7 +54,7 @@ class Sniffer(threading.Thread):
             s = select.select([self.socket], [], [], 1)[0]
             if s:
                 p = s[0].recv()
-                self.handler(p)
+                self.handler(p.getlayer(1)) # Skipping Ethernet header
 
     def stop_and_join(self):
         self.running = False
@@ -82,7 +82,11 @@ def run(test_file, reuse_ns=False, keep_ns=False, ns=DEFAULT_NS_NAME, show_succe
             add_route(ns, "fc00::/16")
         use_ns(ns)
 
-        suite = TestSuite(test_file)
+        try:
+            suite = TestSuite(test_file)
+        except SyntaxError: #could not parse tests
+            return
+
         th = Sniffer(handler=suite.sniffing_handler, iface="dum0")
         th.start()
         
@@ -95,8 +99,7 @@ def run(test_file, reuse_ns=False, keep_ns=False, ns=DEFAULT_NS_NAME, show_succe
             except LookupError:
                 break
             if e.type == Event.PKT:
-                print(e.pkt.summary())
-                tun.send(e.pkt.build())
+                tun.send(e.pkt)
 
         suite.sem_completed.acquire()
         th.stop_and_join()

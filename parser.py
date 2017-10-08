@@ -1,17 +1,16 @@
 #!/usr/bin/env python2.7
 #coding: utf-8
 
-import tatsu
+from __future__ import print_function
+import tatsu, sys
 
-from structs import Event
+from structs import Event, WILDCARD
 from scapy.all import IPv6, IPv6ExtHdrSegmentRouting, UDP, TCP, Raw
 
 grammar = """
-
 start = {operation}+ $ ;
 
-operation = '>' pkt:packet '<' answer:packet
-         | '<' pkt:packet
+operation = '>' pkt:packet ['<' answer:packet]
          | 'add route'
          | 'del route'
          | '#' {/\S/|' '}+;
@@ -30,9 +29,10 @@ ip6h = ip6_addr '->' ip6_addr;
 srh = '[' ','%{ segs_active:seg_active segs:ip6_addr }+ ']' [options:srh_options];
 srh_options = '<' ','%{names:word values:number}+ '>';
 
-trans = proto:('UDP'|'TCP') ['(' sport:number ',' dport:number ')'];
+trans = proto:('UDP'|'TCP') ['(' sport:('*'|number) ',' dport:('*'|number) ')'];
 
-payload = /"(.*?)"/;
+payload = '*'
+        | /"(.*?)"/;
 
 seg_active = /\+?/;
 ip6_addr = ( /([a-f]|\d|:)+/ | '*');
@@ -40,13 +40,17 @@ ip6_addr = ( /([a-f]|\d|:)+/ | '*');
 word = /\w+/;
 number = /\d+/;
 """
-# TODO add comments
-
 
 model = tatsu.compile(grammar)
 
 def parse(string):
-    ast = model.parse(string)
+    try:
+        ast = model.parse(string)
+    except tatsu.exceptions.FailedParse as e:
+        print("Error when parsing the following:", file=sys.stderr)
+        msg = str(e).split('\n')
+        print("\n".join(msg[1:3]), file=sys.stderr)
+        raise SyntaxError
     
     events = []
 
@@ -58,21 +62,24 @@ def parse(string):
             e.type = Event.PKT
             e.pkt = parse_packet(op["pkt"])
 
-            if "answer" in op:
-                e.expected_answer = parse_packet(op["answer"])
+            if op["answer"]:
+                e.expected_answer = parse_packet(op["answer"], for_comparison=True)
 
     return events
 
-def validate_ip6(addr):
-    if addr == '*':
-        return None
+def WILDCARD_error(ast):
+    print("A WILDCARD (*) cannot be used in an injected packet.", file=sys.stderr)
+    raise SyntaxError
 
-    return addr #TODO
+def parse_packet(ast, for_comparison=False):
+    if for_comparison:
+        _ = lambda x: WILDCARD if x  == '*' else x
+    else:
+        _ = lambda x: WILDCARD_error if x == '*' else x
 
-def parse_packet(ast):
     pkt = IPv6()
-    pkt.src = validate_ip6(ast['ip'][0])
-    pkt.dst = validate_ip6(ast['ip'][2])
+    pkt.src = _(ast['ip'][0])
+    pkt.dst = _(ast['ip'][2])
 
     if ast['srh']:
         srh = IPv6ExtHdrSegmentRouting()
@@ -107,14 +114,22 @@ def parse_packet(ast):
         elif proto == "TCP":
             transport = TCP()
 
-        transport.sport = int(ast['trans']['sport']) # TODO if ?
-        transport.dport = int(ast['trans']['dport'])
+        if ast['trans']['sport']:
+            p = _(ast['trans']['sport'])
+            transport.sport = int(p) if p != WILDCARD else p
+
+        if ast['trans']['dport']:
+            p = _(ast['trans']['dport'])
+            transport.dport = int(p) if p != WILDCARD else p
 
         pkt = pkt / transport
 
     if ast['payload']:
-        payload = Raw(ast['payload'][1:-1])
-        pkt = pkt / payload
+        if ast['payload'] == '*':
+            pkt = pkt / Raw('') # Dirty hack, we suppose that an empty payload matches everything ..
+            pkt[Raw].load = WILDCARD
+        else:
+            pkt = pkt / Raw(ast['payload'][1:-1])
 
     return pkt
 
