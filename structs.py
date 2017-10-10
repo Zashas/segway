@@ -14,6 +14,8 @@ def pkt_match(expected, actual):
 
     if expected == NO_PKT and actual == NO_PKT:
         return True
+    elif expected == NO_PKT or actual == NO_PKT:
+        return False
 
     if expected.oif != WILDCARD and expected.oif != actual.oif:
         # This can't be added to `fields` because it's not a proper scapy field
