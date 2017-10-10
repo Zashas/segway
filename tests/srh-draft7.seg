@@ -1,0 +1,84 @@
+# Test suite for SRv6 IETF draft : https://tools.ietf.org/html/draft-ietf-6man-segment-routing-header-07
+
+#3) Segment Routing Extension Header (SRH)
+
+# 0                   1                   2                   3
+# 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+#+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#| Next Header   |  Hdr Ext Len  | Routing Type  | Segments Left |
+#+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#|  Last Entry   |     Flags     |              Tag              |
+#+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#|                                                               |
+#|            Segment List[0] (128 bits IPv6 address)            |
+#|                                                               |
+#|                                                               |
+#+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#|                                                               |
+#|                                                               |
+#                              ...
+#|                                                               |
+#|                                                               |
+#+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#|                                                               |
+#|            Segment List[n] (128 bits IPv6 address)            |
+#|                                                               |
+#|                                                               |
+#+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#//                                                             //
+#//         Optional Type Length Value objects (variable)       //
+#//                                                             //
+#+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+# Check that the last entry, tag and APO flags are conserved, after a SR endpoint
+> fc00::2 -> fd00::42 / [fc00::1,fd00::42] <sl 1, le 1, tag 71, fl APO>
+< fc00::2 -> fc00::1  / [fc00::1,fd00::42] <sl 0, le 1, tag 71, fl APO>
+
+#3.1) SRH TLVs
+# TODO
+
+#3.2) Only the router whose address is in the DA field of the packet header MUST inspect the SRH.
+> beef::1 -> fc00::2 / [fc00::1, fc00::2, fd00::42] <sl 2>
+< beef::1 -> fc00::2 / [fc00::1, fc00::2, fd00::42] <sl 2>
+
+#4.1) End: Endpoint Function
+#   1. IF SegmentsLeft > 0 THEN
+#   2.    decrement SL
+#   3.    update the IPv6 DA with SRH[SL]
+#   4.    FIB lookup on updated DA
+#   5.    forward accordingly to the matched entry
+#   6.  ELSE
+#   7.    drop the packet
+
+> fc00::10 -> fd00::42 / [fc00::1,fc00::2,fd00::42,fc00::3,fc00::4] <sl 2>
+< fc00::10 -> fc00::2 / [fc00::1,fc00::2,fd00::42,fc00::3,fc00::4] <sl 1>
+
+> fc00::1 -> fd00::42 / [fc00::2,fd00::42] <sl 0>
+< none
+
+# Tests with UDP and TCP
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42] / UDP(4880, 42) / "foobar"
+< fc00::2 -> fc00::1  / [+fc00::1,fd00::42] / UDP(4880, 42) / "foobar"
+
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42] / TCP(1337, 121) / "lorem ipsum"
+< fc00::2 -> fc00::1  / [+fc00::1,fd00::42] / TCP(1337, 121) / "lorem ipsum"
+
+# By default, a local SID bound to the End function does not allow the decapsulation of an outer header.
+# As a consequence, an End SID cannot be the last SID of an SRH and cannot be the DA of a packet without SRH.
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42] / beef::1337 -> babe::8
+< fc00::2 -> fc00::1  / [+fc00::1,fd00::42] / beef::1337 -> babe::8
+
+> fc00::2 -> fd00::42 / [+fd00::42,fc00::1] / beef::1337 -> babe::8
+< none
+
+
+#4.2) End.X: Endpoint with Layer-3 cross-connect
+#   1. IF SegmentsLeft > 0 THEN
+#   2.    decrement SL
+#   3.    update the IPv6 DA with SRH[SL]
+#   4.    forward to layer-3 adjacency bound to the SID "S"
+#   5.  ELSE
+#   6.    drop the packet
+#
+
+
