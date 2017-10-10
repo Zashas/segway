@@ -42,6 +42,12 @@
 > fc00::1 -> fd00::42 / [fc00::2,fd00::42] <sl 0>
 < none
 
+# Unknown prefix as next segment, packet should be dropped.
+# Note that there's no ICMP message !
+> dead:beef::2 -> fd00::42 / [baba::28,fd00::42,dead:beef::1] <sl 1>
+< none
+
+
 # Tests with UDP and TCP
 > fc00::2 -> fd00::42 / [fc00::1,+fd00::42] / UDP(4880, 42) / "foobar"
 < fc00::2 -> fc00::1  / [+fc00::1,fd00::42] / UDP(4880, 42) / "foobar"
@@ -80,6 +86,9 @@
 > fc00::1 -> fc01::42 / [fc00::2,fc01::42] <sl 0>
 < none
 
+# Unknown prefix as next segment, packet should be dropped
+> dead:beef::2 -> fc01::42 / [baba::28,fc01::42,dead:beef::1] <sl 1>
+< none
 
 # By default, a local SID bound to the End function does not allow the decapsulation of an outer header.
 # As a consequence, an End SID cannot be the last SID of an SRH and cannot be the DA of a packet without SRH.
@@ -111,8 +120,12 @@ if add dum1 # Add a new interface to the router and start sniffing on it
 > dead:beef::2 -> fc01::1234 / [fc00::2,fc01::1234,dead:beef::1] <sl 0>
 < none
 
+# Unknown prefix as next segment, but End.X still forwards the packet on dum1
+> dead:beef::2 -> fc01::1234 / [baba::28,fc01::1234,dead:beef::1] <sl 1>
+< (dum1) dead:beef::2 -> baba::28 / [baba::28,fc01::1234,dead:beef::1] <sl 0>
 
-# The following tests verify the encapsulation features that are not part of the IETF draft
+
+### The following tests verify the encapsulation features, which are not part of the IETF draft
 
 # SRH insertion with IPv6 encapsulation
 `ip -6 route add dead:beef::/48 encap seg6 mode encap segs fc00::1,fc00::2,fc00::3 dev dum0`
