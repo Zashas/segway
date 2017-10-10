@@ -1,8 +1,8 @@
-segway - Testing framework for IPv6 segment routing on Linux
+## segway - Testing framework for IPv6 segment routing on Linux
 
-segway sets up a network namespace with special network interfaces, simulating an IPv6 network with Segment Routing, and executes a given test suite, sending and sniffing packets. An example of test suite is provideed in [tests/example.seg](tests/example.seg).
+segway sets up a network namespace with special network interfaces, simulating an IPv6 network with Segment Routing, and executes a given test suite, sending and sniffing packets. An example of test suite is provided in [tests/example.seg](tests/example.seg).
 
-segways uses Python 2.7 and requires several dependencies, which can be installed using [pipenv](https://docs.pipenv.org/).
+segway uses Python 2.7 and requires several dependencies, which can be installed using [pipenv](https://docs.pipenv.org/).
 
 ```
 git clone https://github.com/Zashas/segway.git
@@ -12,7 +12,7 @@ cd segway
 sudo python segway.py tests/example.seg
 ```
 
-=== Usage ===
+### Usage 
 
 ```
 Usage:
