@@ -1,4 +1,8 @@
 # Test suite for SRv6 IETF draft : https://tools.ietf.org/html/draft-ietf-6man-segment-routing-header-07
+# This test suite requires a Linux kernel 4.14.0 or newer
+
+# By default, in our simulated routing chain, the router has loopback address fd00::42,
+# and only the fc00::/16 prefix is routed to the captured interface dum0
 
 #3) Segment Routing Extension Header (SRH)
 
@@ -30,6 +34,21 @@
 #//                                                             //
 #+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
+# Simple SRH example
+> fc00::10 -> fd00::42 / [fc00::1,fc00::2,fd00::42,fc00::3,fc00::4] <sl 2>
+< fc00::10 -> fc00::2 / [fc00::1,fc00::2,fd00::42,fc00::3,fc00::4] <sl 1>
+
+# Shouldn't be forwarded  since sl=0
+> fc00::1 -> fd00::42 / [fc00::2,fd00::42] <sl 0>
+< none
+
+# Tests with UDP and TCP
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42] / UDP(4880, 42) / "foobar"
+< fc00::2 -> fc00::1  / [+fc00::1,fd00::42] / UDP(4880, 42) / "foobar"
+
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42] / TCP(1337, 121) / "lorem ipsum"
+< fc00::2 -> fc00::1  / [+fc00::1,fd00::42] / TCP(1337, 121) / "lorem ipsum"
+
 # Check that the last entry, tag and APO flags are conserved, after a SR endpoint
 > fc00::2 -> fd00::42 / [fc00::1,fd00::42] <sl 1, le 1, tag 71, fl APO>
 < fc00::2 -> fc00::1  / [fc00::1,fd00::42] <sl 0, le 1, tag 71, fl APO>
@@ -50,25 +69,24 @@
 #   6.  ELSE
 #   7.    drop the packet
 
-> fc00::10 -> fd00::42 / [fc00::1,fc00::2,fd00::42,fc00::3,fc00::4] <sl 2>
-< fc00::10 -> fc00::2 / [fc00::1,fc00::2,fd00::42,fc00::3,fc00::4] <sl 1>
+`ip -6 rule add to fc01::/64 lookup 100`
+`ip -6 route add fc01::42 encap seg6local action End dev dum0 table 100`
+`ip -6 route add blackhole default table 100`
 
-> fc00::1 -> fd00::42 / [fc00::2,fd00::42] <sl 0>
+# Same tests as before, as the End function corresponds to the basic SRH routing, but with the new SID
+> fc00::10 -> fc01::42 / [fc00::1,fc00::2,fc01::42,fc00::3,fc00::4] <sl 2>
+< fc00::10 -> fc00::2 / [fc00::1,fc00::2,fc01::42,fc00::3,fc00::4] <sl 1>
+
+> fc00::1 -> fc01::42 / [fc00::2,fc01::42] <sl 0>
 < none
 
-# Tests with UDP and TCP
-> fc00::2 -> fd00::42 / [fc00::1,+fd00::42] / UDP(4880, 42) / "foobar"
-< fc00::2 -> fc00::1  / [+fc00::1,fd00::42] / UDP(4880, 42) / "foobar"
-
-> fc00::2 -> fd00::42 / [fc00::1,+fd00::42] / TCP(1337, 121) / "lorem ipsum"
-< fc00::2 -> fc00::1  / [+fc00::1,fd00::42] / TCP(1337, 121) / "lorem ipsum"
 
 # By default, a local SID bound to the End function does not allow the decapsulation of an outer header.
 # As a consequence, an End SID cannot be the last SID of an SRH and cannot be the DA of a packet without SRH.
-> fc00::2 -> fd00::42 / [fc00::1,+fd00::42] / beef::1337 -> babe::8
-< fc00::2 -> fc00::1  / [+fc00::1,fd00::42] / beef::1337 -> babe::8
+> fc00::2 -> fc01::42 / [fc00::1,+fc01::42] / beef::1337 -> babe::8
+< fc00::2 -> fc00::1  / [+fc00::1,fc01::42] / beef::1337 -> babe::8
 
-> fc00::2 -> fd00::42 / [+fd00::42,fc00::1] / beef::1337 -> babe::8
+> fc00::2 -> fc01::42 / [+fc01::42,fc00::1] / beef::1337 -> babe::8
 < none
 
 
@@ -81,4 +99,36 @@
 #   6.    drop the packet
 #
 
+if add dum1 # Add a new interface to the router and start sniffing on it
+
+`ip -6 route add fc01::1234 encap seg6local action End.X nh6 fc42::1 dev dum1 table 100`
+`ip -6 route add fc42::1 dev dum1`
+
+# Expecting a packet on dum1 instead of the default dum0
+> dead:beef::2 -> fc01::1234 / [fc00::2,fc01::1234,dead:beef::1] <sl 1>
+< (dum1) dead:beef::2 -> fc00::2  / [fc00::2,fc01::1234,dead:beef::1] <sl 0>
+
+> dead:beef::2 -> fc01::1234 / [fc00::2,fc01::1234,dead:beef::1] <sl 0>
+< none
+
+
+# The following tests verify the encapsulation features that are not part of the IETF draft
+
+# SRH insertion with IPv6 encapsulation
+`ip -6 route add dead:beef::/48 encap seg6 mode encap segs fc00::1,fc00::2,fc00::3 dev dum0`
+> deed::1 -> dead:beef::16
+< fd00::42 -> fc00::1 / [fc00::3,fc00::2,+fc00::1] / deed::1 -> dead:beef::16
+
+# Changing the source address of the outer IPv6 packet
+`ip addr add fd00::43 dev dum0`
+`ip sr tunsrc set fd00::43`
+> deed::1 -> dead:beef::16
+< fd00::43 -> fc00::1 / [fc00::3,fc00::2,+fc00::1] / deed::1 -> dead:beef::16
+`ip -6 route del dead:beef::/48`
+
+# SRH inline insertion
+`ip -6 route add dead:beef::/48 encap seg6 mode inline segs fc00::1,fc00::2,fc00::3 dev dum0`
+> deed::2 -> dead:beef::16
+< deed::2 -> fc00::1 / [dead:beef::16,fc00::3,fc00::2,+fc00::1]
+`ip -6 route del dead:beef::/48`
 
