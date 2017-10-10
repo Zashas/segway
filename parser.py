@@ -10,7 +10,8 @@ from scapy.all import IPv6, IPv6ExtHdrSegmentRouting, UDP, TCP, Raw
 grammar = """
 start = {operation}+ $ ;
 
-operation = '>' pkt:packet ['<' answer:('none'|packet)]
+operation = '>' pkt:packet ['<' ['(' oif:alphanum ')'] answer:('none'|packet)]
+         | 'if' 'add' oif:alphanum 
          | cmd:cmd
          | '#' {/\S/|' '}+;
 
@@ -44,6 +45,7 @@ ip6_subnet = /([a-f]|\d|:)+\/\d{1,3}/
 
 word = /\w+/;
 number = /\d+/;
+alphanum = /[a-zA-Z0-9_]+/;
 """
 
 model = tatsu.compile(grammar)
@@ -66,12 +68,21 @@ def parse(string):
         if op['pkt']:
             e.type = Event.PKT
             e.pkt = parse_packet(op["pkt"])
+            e.pkt.oif = None
 
             if op["answer"]:
                 e.expected_answer = parse_packet(op["answer"], for_comparison=True)
+
+                if op["oif"]:
+                    e.expected_answer.oif = op["oif"]
+                else:
+                    e.expected_answer.oif = WILDCARD
         elif op['cmd']:
             e.cmd = op['cmd'][1:-1] # stripping both `
             e.type = Event.CMD
+        elif op['oif']:
+            e.type = Event.OIF
+            e.oif = op['oif']
 
     return events
 

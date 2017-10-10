@@ -15,6 +15,10 @@ def pkt_match(expected, actual):
     if expected == NO_PKT and actual == NO_PKT:
         return True
 
+    if expected.oif != WILDCARD and expected.oif != actual.oif:
+        # This can't be added to `fields` because it's not a proper scapy field
+        return False
+
     fields = {
         IPv6: ('src', 'dst'),
         IPv6ExtHdrSegmentRouting: ('addresses', 'lastentry', 'segleft', 'tag',
@@ -113,8 +117,10 @@ def pkt_str(pkt):
 
         i += 1
 
-    return " / ".join(protos)
-    #"{src} -> {dst} [seg1,_seg2,seg3] <sl 1, le 2> / UDP(sport, dport) / \"payload\""
+    iface = ""
+    if pkt.oif and pkt.oif != "dum0" and pkt.oif != WILDCARD:
+        iface = "({}) ".format(pkt.oif)
+    return iface+" / ".join(protos)
 
 class Event:
     type = None
@@ -125,8 +131,11 @@ class Event:
     answer = None
     expected_answer = None
 
+    oif = None # only used if OIF
+
     PKT = 1
     CMD = 2
+    OIF = 3
 
     def __unicode__(self):
         return self.__str__()
@@ -139,6 +148,8 @@ class Event:
             return s
         elif self.type == Event.CMD:
             return "`"+self.cmd+"`"
+        elif self.type == Event.OIF:
+            return "if add {}".format(self.oif)
         else:
             return "Unknown event"
 

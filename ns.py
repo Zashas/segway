@@ -6,7 +6,7 @@ import subprocess
 
 def create_ns(name):
     if name in netns.listnetns():
-        raise NetNSError('Error : a network namespace "{}" already exists. Use the -n option.'.format(name))
+        raise NetNSError('Error : a network namespace "{}" already exists. Use the --ns or -r option.'.format(name))
     ns_name = name
 
     netns.create(ns_name)
@@ -18,15 +18,23 @@ def add_interfaces(ns_name):
         lo.up()
         lo.add_ip('fd00::42/48')
 
-    # Creating dummy interface in the NS, used for sniffing
-    ip.create(kind='dummy', ifname="dum0").commit()
-    with ip.interfaces.dum0 as dum0:
-        dum0.up()
-   
+    
     # Creating tun interface in the NS, used for injecting
     ip.create(kind='tuntap', ifname="tun0", mode="tun").commit()
     with ip.interfaces.tun0 as tun0:
         tun0.up()
+
+    ip.release()
+
+    add_dummy_if(ns_name, "dum0")
+
+def add_dummy_if(ns_name, name):
+    ip = IPDB(nl=NetNS(ns_name))
+
+    # Creating dummy interface in the NS, used for default sniffing
+    ip.create(kind='dummy', ifname=name).commit()
+    with ip.interfaces[name] as dum:
+        dum.up()
 
     ip.release()
 

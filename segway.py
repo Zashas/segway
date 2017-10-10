@@ -23,13 +23,11 @@ from scapy.all import TunTapInterface, ETH_P_ALL
 from docopt import docopt
 import threading, sys, select, subprocess, shlex
 
-from ns import create_ns, use_ns, delete_ns, add_route, add_interfaces, NetNSError
+from ns import create_ns, use_ns, delete_ns, add_route, add_interfaces, NetNSError, add_dummy_if
 from tests import TestSuite
 from structs import Event
 
 DEFAULT_NS_NAME = "segway"
-
-sem_sniff = threading.Semaphore(0)
 
 class Sniffer(threading.Thread):
     """ Asynchronous packet sniffer """
@@ -37,30 +35,41 @@ class Sniffer(threading.Thread):
     running = True
     socket = None
     handler = None
+    iface = None
+    sem_start = threading.Semaphore(0)
 
     def __init__(self, *args, **kwargs):
         from scapy.config import conf
 
         kwargs['target'] = self.sniff
-        iface = kwargs.pop('iface')
+        self.iface = kwargs.pop('iface')
         self.handler = kwargs.pop('handler')
-        self.socket = conf.L2listen(type=ETH_P_ALL, iface=iface)
+        self.socket = conf.L2listen(type=ETH_P_ALL, iface=self.iface)
 
         super(self.__class__, self).__init__(*args, **kwargs)
 
     def sniff(self):
-        sem_sniff.release()
+        self.sem_start.release()
 
         while self.running:
             s = select.select([self.socket], [], [], 1)[0]
             if s:
                 p = s[0].recv()
-                self.handler(p.getlayer(1)) # Skipping Ethernet header
+                p = p.getlayer(1) # Skipping Ethernet header
+                p.oif = self.iface
+                self.handler(p) # Skipping Ethernet header
 
     def stop_and_join(self):
         self.running = False
         super(self.__class__, self).join()
 
+
+def sniff_on(ifname, fct):
+    th = Sniffer(handler=fct, iface=ifname)
+    th.start()
+    th.sem_start.acquire()
+
+    return th
 
 def run(test_file, reuse_ns=False, keep_ns=False, ns=DEFAULT_NS_NAME, show_succeeded=False, pkt_timer=None):
     if ns == None:
@@ -94,11 +103,10 @@ def run(test_file, reuse_ns=False, keep_ns=False, ns=DEFAULT_NS_NAME, show_succe
         except SyntaxError: #could not parse tests
             return
 
-        th = Sniffer(handler=suite.sniffing_handler, iface="dum0")
-        th.start()
-        
-        sem_sniff.acquire()
         tun = TunTapInterface("tun0")
+
+        sniffers = {}
+        sniffers['dum0'] = sniff_on('dum0', suite.sniffing_handler)
 
         while 1:
             try:
@@ -109,9 +117,16 @@ def run(test_file, reuse_ns=False, keep_ns=False, ns=DEFAULT_NS_NAME, show_succe
                 tun.send(e.pkt)
             elif e.type == Event.CMD:
                 subprocess.call(shlex.split(e.cmd))
+            elif e.type == Event.OIF:
+                if e.oif not in sniffers:
+                    add_dummy_if(ns, e.oif)
+                    sniffers[e.oif] = sniff_on(e.oif, suite.sniffing_handler)
+                else:
+                    print("{} interface already exists.", file=sys.stderr)
 
         suite.sem_completed.acquire()
-        th.stop_and_join()
+        for oif, th in sniffers.items():
+            th.stop_and_join()
 
         suite.show_results(show_succeeded=show_succeeded)
         
