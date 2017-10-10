@@ -4,13 +4,13 @@
 from __future__ import print_function
 import tatsu, sys
 
-from structs import Event, WILDCARD
+from structs import Event, WILDCARD, NO_PKT
 from scapy.all import IPv6, IPv6ExtHdrSegmentRouting, UDP, TCP, Raw
 
 grammar = """
 start = {operation}+ $ ;
 
-operation = '>' pkt:packet ['<' answer:packet]
+operation = '>' pkt:packet ['<' answer:('none'|packet)]
          | cmd:cmd
          | '#' {/\S/|' '}+;
 
@@ -85,6 +85,9 @@ def parse_packet(ast, for_comparison=False):
     else:
         _ = lambda x: raise_parsing_error("a wildcard (*) cannot be used in an injected packet.") if x == '*' else x
 
+    if ast == 'none':
+        return NO_PKT
+
     pkt = IPv6()
     pkt.src = _(ast['ip'][0])
     pkt.dst = _(ast['ip'][2])
@@ -108,8 +111,14 @@ def parse_packet(ast, for_comparison=False):
         srh.lastentry = len(ast['srh']['segs'])-1
 
         if ast['srh']['options']:
-            for i,name in enumerate(ast['srh']['options']['names']):
-                val = ast['srh']['options']['values'][i]
+            srh_opt = ast['srh']['options']['names']
+            srh_opt_val = ast['srh']['options']['values']
+            if isinstance(srh_opt, str) or isinstance(srh_opt, unicode):
+                srh_opt = (srh_opt,)
+                srh_opt_val = (srh_opt_val,)
+
+            for i,name in enumerate(srh_opt):
+                val = srh_opt_val[i]
                 if name == "sl":
                     srh.segleft = int(val)
                 elif name == "le":

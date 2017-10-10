@@ -5,8 +5,15 @@ class WILDCARD:
     """ Used to indicate that some fields in a scapy packet should be ignored when comparing """
     pass
 
+class NO_PKT:
+    """ Indicate that a sent packet should have no reply """
+    pass
+
 def pkt_match(expected, actual):
     """ Check if all fields described in packet `expected` match the fields of pkt `actual`' """
+
+    if expected == NO_PKT and actual == NO_PKT:
+        return True
 
     fields = {
         IPv6: ('src', 'dst'),
@@ -39,6 +46,9 @@ def pkt_match(expected, actual):
         layer += 1
 
 def pkt_str(pkt):
+    if pkt == NO_PKT:
+        return "none"
+
     _ = lambda x: x if x != WILDCARD else "*"
 
     def srh_str(srh):

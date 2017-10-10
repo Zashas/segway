@@ -3,7 +3,7 @@
 
 import threading, os
 
-from structs import pkt_match, pkt_str, Event
+from structs import pkt_match, pkt_str, Event, NO_PKT
 from parser import parse
 
 class TestSuite:
@@ -15,8 +15,12 @@ class TestSuite:
     answers = [] # (Received, Event)
     timer = None
     waiting_answer = False
+    pkt_timer = 1.0
 
-    def __init__(self, path):
+    def __init__(self, path, pkt_timer=None):
+        if pkt_timer:
+            self.pkt_timer = pkt_timer
+
         f = open(path, 'r')
         tests = f.read()
         f.close()
@@ -32,9 +36,9 @@ class TestSuite:
 
         e = self.events[self.cur_event_id]
         if e.type == Event.PKT:
-            if e.expected_answer:
+            if e.expected_answer: #including NO_PKT
                 self.waiting_answer = True
-                self.timer = threading.Timer(1.0, self.answer_timeout)
+                self.timer = threading.Timer(self.pkt_timer, self.answer_timeout)
                 self.timer.start()
             else:
                 self.sem_receiving.release()
@@ -47,7 +51,7 @@ class TestSuite:
 
     def answer_timeout(self):
         e = self.events[self.cur_event_id-1]
-        self.answers.append((None, e))
+        self.answers.append((NO_PKT, e))
         self.waiting_answer = False
         self.sem_receiving.release()
 
@@ -70,7 +74,7 @@ class TestSuite:
 
         for i,ans in enumerate(self.answers):
             recv, e = ans
-            if recv == None:
+            if recv == NO_PKT and e.expected_answer != NO_PKT:
                 print("Packet #{} missing.".format(i+1))
                 print("\tSent :     {}".format(pkt_str(e.pkt)))
                 print("\tExpected : {}".format(pkt_str(e.expected_answer)))

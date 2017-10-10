@@ -5,15 +5,16 @@
 segway - Testing framework for IPv6 segment routing on Linux
 
 Usage:
-    segway.py <path_to_tests> [--ns=<ns_name>] [-k] [-r] [-p]
+    segway.py <path_to_tests> [--ns=<ns_name>] [-t <time>] [-k] [-r] [-p]
     segway.py (-h | --help)
 
 Options:
     -h, --help  Show help
-    --ns=<ns_name>  Use specific network space name
+    --ns <ns_name>  Use specific network space name
     -k              Keep network namespace after running tests
     -r              Reuse network namespace and interfaces
     -p              Show packets of passed tests
+    -t <time>       Maximum time length in which a forwarding/reply to a packet can be expected, in seconds. Default: 1sec
 """
 
 
@@ -61,9 +62,15 @@ class Sniffer(threading.Thread):
         super(self.__class__, self).join()
 
 
-def run(test_file, reuse_ns=False, keep_ns=False, ns=DEFAULT_NS_NAME, show_succeeded=False):
+def run(test_file, reuse_ns=False, keep_ns=False, ns=DEFAULT_NS_NAME, show_succeeded=False, pkt_timer=None):
     if ns == None:
         ns = DEFAULT_NS_NAME
+
+    if pkt_timer:
+        try:
+            pkt_timer = float(pkt_timer)
+        except ValueError:
+            print("Packet timer argument \"{}\" cannot be converted to float.".format(pkt_timer))
 
     if not reuse_ns:
         try:
@@ -83,7 +90,7 @@ def run(test_file, reuse_ns=False, keep_ns=False, ns=DEFAULT_NS_NAME, show_succe
         use_ns(ns)
 
         try:
-            suite = TestSuite(test_file)
+            suite = TestSuite(test_file, pkt_timer)
         except SyntaxError: #could not parse tests
             return
 
@@ -124,4 +131,4 @@ if __name__ == '__main__':
 
     run(arguments['<path_to_tests>'],
             reuse_ns=arguments['-r'], keep_ns=arguments['-k'],
-            ns=arguments['--ns'], show_succeeded=arguments['-p'])
+            ns=arguments['--ns'], show_succeeded=arguments['-p'], pkt_timer=arguments['-t'])
