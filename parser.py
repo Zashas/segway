@@ -5,7 +5,10 @@ from __future__ import print_function
 import tatsu, sys
 
 from structs import Event, WILDCARD, NO_PKT
-from scapy.all import IPv6, IPv6ExtHdrSegmentRouting, UDP, TCP, Raw
+from scapy.all import IPv6, UDP, TCP, Raw, IPv6ExtHdrSegmentRouting, \
+        IPv6ExtHdrSegmentRoutingTLVPadding, IPv6ExtHdrSegmentRoutingTLVHMAC, \
+        IPv6ExtHdrSegmentRoutingTLVIngressNode, IPv6ExtHdrSegmentRoutingTLVEgressNode, \
+        IPv6ExtHdrSegmentRoutingTLVNSHCarrier, IPv6ExtHdrSegmentRoutingTLVOpaque
 
 grammar = """
 start = {operation}+ $ ;
@@ -27,9 +30,15 @@ packet = ip:ip6h ['/' srh:srh] '/' encap:packet
 
 ip6h = (ip6_addr|'*') '->' (ip6_addr|'*');
 
-srh = '[' ','%{ segs_active:seg_active segs:ip6_addr }+ ']' [options:srh_options];
+srh = '[' ','%{ segs_active:seg_active segs:ip6_addr }+ ']' [options:srh_options] tlvs:{ '{' (srh_tlv_ingr|srh_tlv_egr|srh_tlv_hmac|srh_tlv_pad|srh_tlv_opaque|srh_tlv_nsh) '}'}*;
 srh_options = '<' ','%{names:word values:(number|srh_flags)}+ '>';
 srh_flags = /(P|O|A|H)+/;
+srh_tlv_pad = type:'Pad' ':' size:number;
+srh_tlv_ingr = type:'Ingr' ':' ip:ip6_addr;
+srh_tlv_egr = type:'Egr' ':' ip:ip6_addr;
+srh_tlv_hmac = type:'HMAC' ':' keyid:number ',' hmac:alphanum; 
+srh_tlv_opaque = type:'Opaq' ':' data:alphanum; 
+srh_tlv_nsh = type:'NSH' ':' data:alphanum; 
 
 trans = proto:('UDP'|'TCP') ['(' sport:('*'|number) ',' dport:('*'|number) ')'];
 
@@ -149,6 +158,62 @@ def parse_packet(ast, for_comparison=False):
                 else:
                     raise_parsing_error("unknown SRH option {}".format(name))
 
+        if ast['srh']['tlvs']:
+            for tlv in ast['srh']['tlvs']:
+                tlv = tlv[1]
+                if tlv['type'] == 'Pad':
+                    pad = IPv6ExtHdrSegmentRoutingTLVPadding()
+                    pad_len = int(tlv['size'])
+                    if pad_len < 1 or pad_len > 7:
+                        raise_parsing_error("padding TLV's length must be between 1 and 7")
+
+                    pad.len = pad_len
+                    pad.padding = b"\x00"*pad.len
+                    srh.tlv_objects.append(pad)
+
+                elif tlv['type'] == 'HMAC':
+                    hmac = IPv6ExtHdrSegmentRoutingTLVHMAC()
+                    hmac.keyid = int(tlv['keyid'])
+                    try:
+                        hmac.hmac = tlv['hmac'].decode('hex')
+                    except TypeError:
+                        raise_parsing_error("specified HMAC isn't provided in a hexadecimal representation")
+
+                    srh.tlv_objects.append(hmac)
+
+                elif tlv['type'] == 'Ingr':
+                    ingr = IPv6ExtHdrSegmentRoutingTLVIngressNode()
+                    ingr.ingress_node = tlv['ip']
+                    srh.tlv_objects.append(ingr)
+
+                elif tlv['type'] == 'Egr':
+                    egr = IPv6ExtHdrSegmentRoutingTLVEgressNode()
+                    egr.egress_node = tlv['ip']
+                    srh.tlv_objects.append(egr)
+
+                elif tlv['type'] == 'Opaq':
+                    opaq = IPv6ExtHdrSegmentRoutingTLVOpaque()
+                    if len(tlv['data']) != 32:
+                        raise_parsing_error("container for Opaque TLV must be 128 bits long")
+
+                    try:
+                        opaq.container = tlv['data'].decode('hex')
+                    except TypeError:
+                        raise_parsing_error("specified Opaque TLV container isn't provided in a hexadecimal representation")
+                    srh.tlv_objects.append(opaq)
+                elif tlv['type'] == 'NSH':
+                    nsh = IPv6ExtHdrSegmentRoutingTLVNSHCarrier()
+                    try:
+                        nsh.nsh_object = tlv['data'].decode('hex')
+                        nsh.len = len(nsh.nsh_object)
+                    except TypeError:
+                        raise_parsing_error("specified NSH carried object isn't provided in a hexadecimal representation")
+                    srh.tlv_objects.append(nsh)
+
+                else:
+                    raise_parsing_error("unknown SRH TLV {}".format(tlv['type']))
+
+
         pkt = pkt / srh
 
     if ast['encap']:
@@ -191,8 +256,12 @@ if __name__ == '__main__':
     > fc00::2 -> fc00::1 / [fc00::1,fd00::42] <sl 0, le 1>
 > fc00::2 -> fc00::1 / [+fc00::1,fd00::42] <sl 0, le 2> / UDP(4242, 4242) / \"test\"
 > fc00::2 -> fc00::1 / [+fc00::1,fd00::42] <sl 1, le 1> / UDP / \"Coucou\"
+> fc00::2 -> fc00::1 / [+fc00::1,fd00::42] <sl 1, le 1, fl H> {Pad: 8} {HMAC: 42, c3ab8ff13720e8ad9047dd39466b3c8974e592c2fa383d4a3960714caef0c4f2} / UDP / \"Coucou\"
 > fc00::2 -> *"""
     
-    parse(s)
+    s7 = '> fc00::2 -> fc00::1 / [+fc00::1,fd00::42] <sl 1, le 1, fl H> {Pad: 6} {HMAC: 42, c3ab8ff13720e8ad9047dd39466b3c8974e592c2fa383d4a3960714caef0c4f2} / UDP / \"Coucou\"'
+    s8 = '> fc00::1 -> fc00::2 / [+fc00::3,fc00::2] {Ingr: fc00::2} {Egr: fc00::3} / UDP'
+    parse(s8)
+
     
 

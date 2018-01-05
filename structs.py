@@ -25,6 +25,12 @@ def pkt_match(expected, actual):
         IPv6: ('src', 'dst'),
         IPv6ExtHdrSegmentRouting: ('addresses', 'lastentry', 'segleft', 'tag',
             'unused1', 'protected', 'oam', 'alert', 'hmac', 'unused2'), # Flags
+        IPv6ExtHdrSegmentRoutingTLVHMAC : ('hmac', 'keyid'),
+        IPv6ExtHdrSegmentRoutingTLVIngressNode : ('ingress_node',),
+        IPv6ExtHdrSegmentRoutingTLVEgressNode : ('egress_node',),
+        IPv6ExtHdrSegmentRoutingTLVOpaque : ('container',),
+        IPv6ExtHdrSegmentRoutingTLVPadding : ('len',),
+        IPv6ExtHdrSegmentRoutingTLVNSHCarrier : ('nsh_object',),
         TCP: ('sport', 'dport'),
         UDP: ('sport', 'dport'),
         Raw: ('load',)
@@ -61,7 +67,7 @@ def pkt_str(pkt):
         from collections import OrderedDict
 
         segs = list(srh.addresses)
-        if srh.segleft < len(segs):
+        if srh.segleft and srh.segleft < len(segs):
             segs[srh.segleft] = "+"+segs[srh.segleft]
 
         options = OrderedDict((('sl',srh.segleft), ('le',srh.lastentry)))
@@ -77,7 +83,25 @@ def pkt_str(pkt):
         if flags != "":
             options['fl'] = flags
 
-        return "[{}] <{}>".format(",".join(segs), ",".join(map(lambda key: "{} {}".format(key, options[key]),options)))
+        tlvs = []
+        for tlv in srh.tlv_objects:
+            if isinstance(tlv,IPv6ExtHdrSegmentRoutingTLVHMAC):
+                tlvs.append('{{HMAC: {}, {}}}'.format(tlv.hmac.encode('hex'), tlv.keyid))
+            elif isinstance(tlv,IPv6ExtHdrSegmentRoutingTLVPadding):
+                tlvs.append('{{Pad: {}}}'.format(tlv.len))
+            elif isinstance(tlv,IPv6ExtHdrSegmentRoutingTLVIngressNode):
+                tlvs.append('{{Ingr: {}}}'.format(tlv.ingress_node))
+            elif isinstance(tlv,IPv6ExtHdrSegmentRoutingTLVEgressNode):
+                tlvs.append('{{Egr: {}}}'.format(tlv.egress_node))
+            elif isinstance(tlv,IPv6ExtHdrSegmentRoutingTLVOpaque):
+                tlvs.append('{{Opaq: {}}}'.format(tlv.container.encode('hex')))
+            elif isinstance(tlv,IPv6ExtHdrSegmentRoutingTLVNSHCarrier):
+                tlvs.append('{{NSH: {}}}'.format(tlv.nsh_object.encode('hex')))
+            else:
+                tlvs.append('{Unknown TLV type}')
+
+
+        return "[{}] <{}>{}".format(",".join(segs), ",".join(map(lambda key: "{} {}".format(key, options[key]),options)), "" if not tlvs else " "+" ".join(tlvs))
 
     def ip_str(ip):
         return  "{} -> {}".format(_(ip.src), _(ip.dst))
@@ -112,6 +136,8 @@ def pkt_str(pkt):
         layer = pkt.getlayer(i)
         if layer == None:
             break
+        elif isinstance(layer, IPv6ExtHdrSegmentRoutingTLV):
+            pass
         elif layer.__class__ in fcts:
             protos.append(fcts[layer.__class__](layer))
         else:

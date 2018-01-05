@@ -60,7 +60,60 @@
 < fc00::2 -> fc00::1  / [fc00::1,fd00::42] <sl 0, le 1, tag 71, fl APO>
 
 #3.1) SRH TLVs
-# TODO
+
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42,fc00::beef] {Ingr: dead:beef::7} {Pad: 2}
+< fc00::2 -> fc00::1 / [+fc00::1,fd00::42,fc00::beef] {Ingr: dead:beef::7} {Pad: 2}
+
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42,fc00::beef] {Opaq: 0123456789abcdef0123456789abcdef} {Pad: 2}
+< fc00::2 -> fc00::1 / [+fc00::1,fd00::42,fc00::beef] {Opaq: 0123456789abcdef0123456789abcdef} {Pad: 2}
+
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42,fc00::beef] {NSH: deadbeef42}
+< fc00::2 -> fc00::1 / [+fc00::1,fd00::42,fc00::beef] {NSH: deadbeef42} 
+
+#3.1.5 & 6.2) HMAC TLV
+
+# The following tests assume the Linux kernel's default policy (accept if no HMAC, and validate packets with HMAC)
+
+# Test without a key for keyid 1042 set
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42,fc00::beef] <fl H> {HMAC: 1042, cb660b51dabb0c8955ec1b6cc1e4242a0c42f7c23b8b037cf348e63fa89b065a} / UDP(13,37) / "Lorem ipsum"
+< none
+
+# Set the key 'foobar' for keyid 1042
+`/usr/bin/expect -c 'spawn ip sr hmac set 1042 sha256; expect "(blank to delete): "; send "foobar\r\n"; interact'`
+
+# Correct HMAC, should be routed
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42,fc00::beef] <fl H> {HMAC: 1042, cb660b51dabb0c8955ec1b6cc1e4242a0c42f7c23b8b037cf348e63fa89b065a} / UDP(13,37) / "Lorem ipsum"
+< fc00::2 -> fc00::1 / [+fc00::1,fd00::42,fc00::beef] <fl H> {HMAC: 1042, cb660b51dabb0c8955ec1b6cc1e4242a0c42f7c23b8b037cf348e63fa89b065a} / UDP(13,37) / "Lorem ipsum"
+
+# Again, now with other TLVs embedded
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42,fc00::beef] <fl H> {Ingr: dead:beef::7} {Pad: 2}
+{HMAC: 1042, cb660b51dabb0c8955ec1b6cc1e4242a0c42f7c23b8b037cf348e63fa89b065a} / UDP(13,37) / "Lorem ipsum"
+< fc00::2 -> fc00::1 / [+fc00::1,fd00::42,fc00::beef] <fl H> {Ingr: dead:beef::7} {Pad: 2}
+{HMAC: 1042, cb660b51dabb0c8955ec1b6cc1e4242a0c42f7c23b8b037cf348e63fa89b065a} / UDP(13,37) / "Lorem ipsum"
+
+# Wrong HMAC
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42,fc00::beef] <fl H> {HMAC: 1042, cb660b51dabdabdabdabdabdabdabdab0c42f7c23b8b037cf348e63fa89b065a} / UDP(13,37) / "Lorem ipsum"
+< none
+
+# Wrong key ID
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42,fc00::beef] <fl H> {HMAC: 1025, cb660b51dabb0c8955ec1b6cc1e4242a0c42f7c23b8b037cf348e63fa89b065a} / UDP(13,37) / "Lorem ipsum"
+< none
+
+# Wrong source IP
+> fc00::23 -> fd00::42 / [fc00::1,+fd00::42,fc00::beef] <fl H> {HMAC: 1042, cb660b51dabb0c8955ec1b6cc1e4242a0c42f7c23b8b037cf348e63fa89b065a} / UDP(13,37) / "Lorem ipsum"
+< none
+
+# Wrong segments list
+> fc00::23 -> fd00::42 / [fc00::dead,+fd00::42,fc00::beef] <fl H> {HMAC: 1042, cb660b51dabb0c8955ec1b6cc1e4242a0c42f7c23b8b037cf348e63fa89b065a} / UDP(13,37) / "Lorem ipsum"
+< none
+
+# Wrong flags
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42,fc00::beef] <fl HO> {HMAC: 1042, cb660b51dabb0c8955ec1b6cc1e4242a0c42f7c23b8b037cf348e63fa89b065a} / UDP(13,37) / "Lorem ipsum"
+< none
+
+# Wrong Last Entry
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42,fc00::beef] <le 1, fl H> {HMAC: 1042, cb660b51dabb0c8955ec1b6cc1e4242a0c42f7c23b8b037cf348e63fa89b065a} / UDP(13,37) / "Lorem ipsum"
+< none
 
 #3.2) Only the router whose address is in the DA field of the packet header MUST inspect the SRH.
 > beef::1 -> fc00::2 / [fc00::1, fc00::2, fd00::42] <sl 2>
