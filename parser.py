@@ -19,10 +19,10 @@ operation = '>' pkt:packet ['<' ['(' oif:alphanum ')'] answer:('none'|packet)]
          | '#' {/\S/|' '}+;
 
 
-packet = ip:ip6h ['/' srh:srh] '/' encap:packet
-       | ip:ip6h '/' srh:srh '/' trans:trans '/' payload:payload
-       | ip:ip6h '/' srh:srh '/' trans:trans
-       | ip:ip6h '/' srh:srh
+packet = ip:ip6h srhs:{'/' srh }* '/' encap:packet
+       | ip:ip6h srhs:{'/' srh }+ '/' trans:trans '/' payload:payload
+       | ip:ip6h srhs:{'/' srh }+ '/' trans:trans
+       | ip:ip6h srhs:{'/' srh }+
        | ip:ip6h '/' trans:trans '/' payload:payload
        | ip:ip6h '/' trans:trans
        | ip:ip6h;
@@ -112,109 +112,112 @@ def parse_packet(ast, for_comparison=False):
     pkt.src = _(ast['ip'][0])
     pkt.dst = _(ast['ip'][2])
 
-    if ast['srh']:
-        srh = IPv6ExtHdrSegmentRouting()
-        segs = []
-        segleft_set = False
-        for i,seg in enumerate(ast['srh']['segs']):
-            active = ast['srh']['segs_active'][i]
+    if ast['srhs']:
+        for e in ast['srhs']:
+            ast_srh = e[1]
 
-            if active == '+':
-                if segleft_set:
-                    raise_parsing_error("two segments have been defined as active.")
-                srh.segleft = i
-                segleft_set = True
+            srh = IPv6ExtHdrSegmentRouting()
+            segs = []
+            segleft_set = False
+            for i,seg in enumerate(ast_srh['segs']):
+                active = ast_srh['segs_active'][i]
 
-            segs.append(seg)
-        srh.addresses = segs
+                if active == '+':
+                    if segleft_set:
+                        raise_parsing_error("two segments have been defined as active.")
+                    srh.segleft = i
+                    segleft_set = True
 
-        srh.lastentry = len(ast['srh']['segs'])-1
+                segs.append(seg)
+            srh.addresses = segs
 
-        if ast['srh']['options']:
-            srh_opt = ast['srh']['options']['names']
-            srh_opt_val = ast['srh']['options']['values']
-            if isinstance(srh_opt, str) or isinstance(srh_opt, unicode):
-                srh_opt = (srh_opt,)
-                srh_opt_val = (srh_opt_val,)
+            srh.lastentry = len(ast_srh['segs'])-1
 
-            for i,name in enumerate(srh_opt):
-                val = srh_opt_val[i]
-                if name == "sl":
-                    srh.segleft = int(val)
-                elif name == "le":
-                    srh.lastentry = int(val)
-                elif name == "tag":
-                    srh.tag = int(val)
-                elif name == "fl":
-                    for letter in val:
-                        if letter == "P":
-                            srh.protected = 1
-                        elif letter == "O":
-                            srh.oam = 1
-                        elif letter == "A":
-                            srh.alert = 1
-                        elif letter == "H":
-                            srh.hmac = 1
-                else:
-                    raise_parsing_error("unknown SRH option {}".format(name))
+            if ast_srh['options']:
+                srh_opt = ast_srh['options']['names']
+                srh_opt_val = ast_srh['options']['values']
+                if isinstance(srh_opt, str) or isinstance(srh_opt, unicode):
+                    srh_opt = (srh_opt,)
+                    srh_opt_val = (srh_opt_val,)
 
-        if ast['srh']['tlvs']:
-            for tlv in ast['srh']['tlvs']:
-                tlv = tlv[1]
-                if tlv['type'] == 'Pad':
-                    pad = IPv6ExtHdrSegmentRoutingTLVPadding()
-                    pad_len = int(tlv['size'])
-                    if pad_len < 1 or pad_len > 7:
-                        raise_parsing_error("padding TLV's length must be between 1 and 7")
+                for i,name in enumerate(srh_opt):
+                    val = srh_opt_val[i]
+                    if name == "sl":
+                        srh.segleft = int(val)
+                    elif name == "le":
+                        srh.lastentry = int(val)
+                    elif name == "tag":
+                        srh.tag = int(val)
+                    elif name == "fl":
+                        for letter in val:
+                            if letter == "P":
+                                srh.protected = 1
+                            elif letter == "O":
+                                srh.oam = 1
+                            elif letter == "A":
+                                srh.alert = 1
+                            elif letter == "H":
+                                srh.hmac = 1
+                    else:
+                        raise_parsing_error("unknown SRH option {}".format(name))
 
-                    pad.len = pad_len
-                    pad.padding = b"\x00"*pad.len
-                    srh.tlv_objects.append(pad)
+            if ast_srh['tlvs']:
+                for tlv in ast_srh['tlvs']:
+                    tlv = tlv[1]
+                    if tlv['type'] == 'Pad':
+                        pad = IPv6ExtHdrSegmentRoutingTLVPadding()
+                        pad_len = int(tlv['size'])
+                        if pad_len < 1 or pad_len > 7:
+                            raise_parsing_error("padding TLV's length must be between 1 and 7")
 
-                elif tlv['type'] == 'HMAC':
-                    hmac = IPv6ExtHdrSegmentRoutingTLVHMAC()
-                    hmac.keyid = int(tlv['keyid'])
-                    try:
-                        hmac.hmac = tlv['hmac'].decode('hex')
-                    except TypeError:
-                        raise_parsing_error("specified HMAC isn't provided in a hexadecimal representation")
+                        pad.len = pad_len
+                        pad.padding = b"\x00"*pad.len
+                        srh.tlv_objects.append(pad)
 
-                    srh.tlv_objects.append(hmac)
+                    elif tlv['type'] == 'HMAC':
+                        hmac = IPv6ExtHdrSegmentRoutingTLVHMAC()
+                        hmac.keyid = int(tlv['keyid'])
+                        try:
+                            hmac.hmac = tlv['hmac'].decode('hex')
+                        except TypeError:
+                            raise_parsing_error("specified HMAC isn't provided in a hexadecimal representation")
 
-                elif tlv['type'] == 'Ingr':
-                    ingr = IPv6ExtHdrSegmentRoutingTLVIngressNode()
-                    ingr.ingress_node = tlv['ip']
-                    srh.tlv_objects.append(ingr)
+                        srh.tlv_objects.append(hmac)
 
-                elif tlv['type'] == 'Egr':
-                    egr = IPv6ExtHdrSegmentRoutingTLVEgressNode()
-                    egr.egress_node = tlv['ip']
-                    srh.tlv_objects.append(egr)
+                    elif tlv['type'] == 'Ingr':
+                        ingr = IPv6ExtHdrSegmentRoutingTLVIngressNode()
+                        ingr.ingress_node = tlv['ip']
+                        srh.tlv_objects.append(ingr)
 
-                elif tlv['type'] == 'Opaq':
-                    opaq = IPv6ExtHdrSegmentRoutingTLVOpaque()
-                    if len(tlv['data']) != 32:
-                        raise_parsing_error("container for Opaque TLV must be 128 bits long")
+                    elif tlv['type'] == 'Egr':
+                        egr = IPv6ExtHdrSegmentRoutingTLVEgressNode()
+                        egr.egress_node = tlv['ip']
+                        srh.tlv_objects.append(egr)
 
-                    try:
-                        opaq.container = tlv['data'].decode('hex')
-                    except TypeError:
-                        raise_parsing_error("specified Opaque TLV container isn't provided in a hexadecimal representation")
-                    srh.tlv_objects.append(opaq)
-                elif tlv['type'] == 'NSH':
-                    nsh = IPv6ExtHdrSegmentRoutingTLVNSHCarrier()
-                    try:
-                        nsh.nsh_object = tlv['data'].decode('hex')
-                        nsh.len = len(nsh.nsh_object)
-                    except TypeError:
-                        raise_parsing_error("specified NSH carried object isn't provided in a hexadecimal representation")
-                    srh.tlv_objects.append(nsh)
+                    elif tlv['type'] == 'Opaq':
+                        opaq = IPv6ExtHdrSegmentRoutingTLVOpaque()
+                        if len(tlv['data']) != 32:
+                            raise_parsing_error("container for Opaque TLV must be 128 bits long")
 
-                else:
-                    raise_parsing_error("unknown SRH TLV {}".format(tlv['type']))
+                        try:
+                            opaq.container = tlv['data'].decode('hex')
+                        except TypeError:
+                            raise_parsing_error("specified Opaque TLV container isn't provided in a hexadecimal representation")
+                        srh.tlv_objects.append(opaq)
+                    elif tlv['type'] == 'NSH':
+                        nsh = IPv6ExtHdrSegmentRoutingTLVNSHCarrier()
+                        try:
+                            nsh.nsh_object = tlv['data'].decode('hex')
+                            nsh.len = len(nsh.nsh_object)
+                        except TypeError:
+                            raise_parsing_error("specified NSH carried object isn't provided in a hexadecimal representation")
+                        srh.tlv_objects.append(nsh)
+
+                    else:
+                        raise_parsing_error("unknown SRH TLV {}".format(tlv['type']))
 
 
-        pkt = pkt / srh
+            pkt = pkt / srh
 
     if ast['encap']:
         return pkt / parse_packet(ast['encap'], for_comparison=for_comparison)
