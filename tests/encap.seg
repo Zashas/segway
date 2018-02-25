@@ -1,0 +1,11 @@
+# SRH inline insertion
+#
+if add dum1
+
+`ip -6 route add table 42 ::/0 dev dum1`
+`ip -6 route add dead::42 encap seg6local action End.T table 42 dev dum0`
+`ip -6 route add dead::/16 encap seg6 mode inline segs dead::42,dead:b::2,dead:c::3 dev dum0`
+
+> deed::2 -> dead:beef::f
+< (dum1) deed::2 -> dead:b::2 / [dead:beef::16,fc00::3,fc00::2,+fc00::1]
+

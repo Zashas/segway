@@ -6,10 +6,8 @@ name = "pypi"
 [packages]
 
 scapy = {git = "https://github.com/Zashas/scapy.git"}
-"pyroute2" = "*"
 docopt = "*"
 tatsu = "*"
-
 
 [dev-packages]
 

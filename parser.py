@@ -208,7 +208,6 @@ def parse_packet(ast, for_comparison=False):
                         nsh = IPv6ExtHdrSegmentRoutingTLVNSHCarrier()
                         try:
                             nsh.nsh_object = tlv['data'].decode('hex')
-                            nsh.len = len(nsh.nsh_object)
                         except TypeError:
                             raise_parsing_error("specified NSH carried object isn't provided in a hexadecimal representation")
                         srh.tlv_objects.append(nsh)

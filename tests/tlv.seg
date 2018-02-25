@@ -1,0 +1,11 @@
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42,fc00::beef] {Ingr: dead:beef::7} {Pad: 2}
+< fc00::2 -> fc00::1 / [+fc00::1,fd00::42,fc00::beef] {Ingr: dead:beef::7} {Pad: 2}
+
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42,fc00::beef] {Opaq: 0123456789abcdef0123456789abcdef} {Pad: 2}
+< fc00::2 -> fc00::1 / [+fc00::1,fd00::42,fc00::beef] {Opaq: 0123456789abcdef0123456789abcdef} {Pad: 2}
+
+> fc00::2 -> fd00::42 / [fc00::1,+fd00::42,fc00::beef] {NSH: deadbeef42}
+< fc00::2 -> fc00::1 / [+fc00::1,fd00::42,fc00::beef] {NSH: deadbeef42} 
+
+> fc00::2 -> fd00::42 / [fc00::14,+fd00::42] {NSH: 0102} {Pad: 1} / UDP
+< fc00::2 -> fc00::14 / [+fc00::14,fd00::42] {NSH: 0102} {Pad: 1} / UDP

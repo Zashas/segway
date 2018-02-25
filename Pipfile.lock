@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "915dcc58e352ae5c74d0ddf8c6209fdc47f9bdeffbeb6e560eb2dce6f31089b7"
+            "sha256": "ff235c91ceedfb5582abbee4ddf815cf9b83677a4eeab977099ab4400d05f857"
         },
         "host-environment-markers": {
             "implementation_name": "cpython",
@@ -9,9 +9,9 @@
             "os_name": "posix",
             "platform_machine": "x86_64",
             "platform_python_implementation": "CPython",
-            "platform_release": "4.13.3-1-ARCH",
+            "platform_release": "4.16.0-rc1-ARCH",
             "platform_system": "Linux",
-            "platform_version": "#1 SMP PREEMPT Thu Sep 21 20:33:16 CEST 2017",
+            "platform_version": "#161 SMP PREEMPT Sun Feb 25 16:50:08 GMT 2018",
             "python_full_version": "2.7.14",
             "python_version": "2.7",
             "sys_platform": "linux2"
@@ -35,21 +35,18 @@
             ],
             "version": "==0.6.2"
         },
-        "pyroute2": {
-            "hashes": [
-                "sha256:7afad28ee0a0f3e7c34adaa9f953d00560ed9910203e93f107833b6e8d151171"
-            ],
-            "version": "==0.4.21"
-        },
         "scapy": {
-            "git": "https://github.com/Zashas/scapy.git"
+            "hashes": [
+                "sha256:9d3b0293dcdc2cc42eedacbc9003038109558c4b5c5e4a3fa01b8ef5762f1eb0"
+            ],
+            "version": "==2.3.3"
         },
         "tatsu": {
             "hashes": [
-                "sha256:02e4c367d98b6bcdf024dcbf0576c66b039ca496615e460ce422b008da58e32a",
-                "sha256:ce61d03cf06db74116ac5800437f12c557fa91bdc19be358c69d4da8af72c691"
+                "sha256:f304b9a2889c2afadbf893db775f63975da699e409cbf45b264ea6a94ec2a7de",
+                "sha256:190f144e3500ece77c66ebcd634ede16e3eec37658fe866731aba0f65a6c5526"
             ],
-            "version": "==4.2.3"
+            "version": "==4.2.5"
         }
     },
     "develop": {}
