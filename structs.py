@@ -31,6 +31,7 @@ def pkt_match(expected, actual):
         IPv6ExtHdrSegmentRoutingTLVOpaque : ('container',),
         IPv6ExtHdrSegmentRoutingTLVPadding : ('len',),
         IPv6ExtHdrSegmentRoutingTLVNSHCarrier : ('nsh_object',),
+        IPv6ExtHdrSegmentRoutingTLV : ('type', 'value'),
         TCP: ('sport', 'dport'),
         UDP: ('sport', 'dport'),
         Raw: ('load',)
@@ -98,7 +99,7 @@ def pkt_str(pkt):
             elif isinstance(tlv,IPv6ExtHdrSegmentRoutingTLVNSHCarrier):
                 tlvs.append('{{NSH: {}}}'.format(tlv.nsh_object.encode('hex')))
             else:
-                tlvs.append('{Unknown TLV type}')
+                tlvs.append('{{Type:{} Value:{}}}'.format(tlv.type, tlv.value.encode('hex')))
 
 
         return "[{}] <{}>{}".format(",".join(segs), ",".join(map(lambda key: "{} {}".format(key, options[key]),options)), "" if not tlvs else " "+" ".join(tlvs))

@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "ff235c91ceedfb5582abbee4ddf815cf9b83677a4eeab977099ab4400d05f857"
+            "sha256": "adedd67059e2f4d30b2879c9e39839890ad2010a6249b3c7e4f40f55333967c1"
         },
         "host-environment-markers": {
             "implementation_name": "cpython",
@@ -9,9 +9,9 @@
             "os_name": "posix",
             "platform_machine": "x86_64",
             "platform_python_implementation": "CPython",
-            "platform_release": "4.16.0-rc1-ARCH",
+            "platform_release": "4.14.19-1-lts",
             "platform_system": "Linux",
-            "platform_version": "#161 SMP PREEMPT Sun Feb 25 16:50:08 GMT 2018",
+            "platform_version": "#1 SMP Tue Feb 13 13:11:52 CET 2018",
             "python_full_version": "2.7.14",
             "python_version": "2.7",
             "sys_platform": "linux2"
@@ -36,10 +36,7 @@
             "version": "==0.6.2"
         },
         "scapy": {
-            "hashes": [
-                "sha256:9d3b0293dcdc2cc42eedacbc9003038109558c4b5c5e4a3fa01b8ef5762f1eb0"
-            ],
-            "version": "==2.3.3"
+            "git": "https://github.com/Zashas/scapy.git"
         },
         "tatsu": {
             "hashes": [

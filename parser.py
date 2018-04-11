@@ -8,7 +8,8 @@ from structs import Event, WILDCARD, NO_PKT
 from scapy.all import IPv6, UDP, TCP, Raw, IPv6ExtHdrSegmentRouting, \
         IPv6ExtHdrSegmentRoutingTLVPadding, IPv6ExtHdrSegmentRoutingTLVHMAC, \
         IPv6ExtHdrSegmentRoutingTLVIngressNode, IPv6ExtHdrSegmentRoutingTLVEgressNode, \
-        IPv6ExtHdrSegmentRoutingTLVNSHCarrier, IPv6ExtHdrSegmentRoutingTLVOpaque
+        IPv6ExtHdrSegmentRoutingTLVNSHCarrier, IPv6ExtHdrSegmentRoutingTLVOpaque, \
+        IPv6ExtHdrSegmentRoutingTLV
 
 grammar = """
 start = {operation}+ $ ;
@@ -30,7 +31,7 @@ packet = ip:ip6h srhs:{'/' srh }* '/' encap:packet
 
 ip6h = (ip6_addr|'*') '->' (ip6_addr|'*');
 
-srh = '[' ','%{ segs_active:seg_active segs:ip6_addr }+ ']' [options:srh_options] tlvs:{ '{' (srh_tlv_ingr|srh_tlv_egr|srh_tlv_hmac|srh_tlv_pad|srh_tlv_opaque|srh_tlv_nsh) '}'}*;
+srh = '[' ','%{ segs_active:seg_active segs:ip6_addr }+ ']' [options:srh_options] tlvs:{ '{' (srh_tlv|srh_tlv_ingr|srh_tlv_egr|srh_tlv_hmac|srh_tlv_pad|srh_tlv_opaque|srh_tlv_nsh) '}'}*;
 srh_options = '<' ','%{names:word values:(number|srh_flags)}+ '>';
 srh_flags = /(P|O|A|H)+/;
 srh_tlv_pad = type:'Pad' ':' size:number;
@@ -39,6 +40,7 @@ srh_tlv_egr = type:'Egr' ':' ip:ip6_addr;
 srh_tlv_hmac = type:'HMAC' ':' keyid:number ',' hmac:alphanum; 
 srh_tlv_opaque = type:'Opaq' ':' data:alphanum; 
 srh_tlv_nsh = type:'NSH' ':' data:alphanum; 
+srh_tlv = 'Type' ':' type:number 'Value' ':' data:alphanum;
 
 trans = proto:('UDP'|'TCP') ['(' sport:('*'|number) ',' dport:('*'|number) ')'];
 
@@ -212,6 +214,18 @@ def parse_packet(ast, for_comparison=False):
                             raise_parsing_error("specified NSH carried object isn't provided in a hexadecimal representation")
                         srh.tlv_objects.append(nsh)
 
+                    elif tlv['type'].isdigit():
+                        t = IPv6ExtHdrSegmentRoutingTLV()
+                        type = int(tlv['type'])
+                        if type > 256:
+                            raise_parsing_error("TLV type must be 8 bits long")
+                        t.type = type
+                        try:
+                            t.value = tlv['data'].decode('hex')
+                        except TypeError:
+                            raise_parsing_error("specified TLV data isn't provided in a hexadecimal representation")
+                        srh.tlv_objects.append(t)
+
                     else:
                         raise_parsing_error("unknown SRH TLV {}".format(tlv['type']))
 
@@ -263,7 +277,8 @@ if __name__ == '__main__':
     
     s7 = '> fc00::2 -> fc00::1 / [+fc00::1,fd00::42] <sl 1, le 1, fl H> {Pad: 6} {HMAC: 42, c3ab8ff13720e8ad9047dd39466b3c8974e592c2fa383d4a3960714caef0c4f2} / UDP / \"Coucou\"'
     s8 = '> fc00::1 -> fc00::2 / [+fc00::3,fc00::2] {Ingr: fc00::2} {Egr: fc00::3} / UDP'
-    parse(s8)
+    s9 = '> fc00::1 -> fc00::2 / [+fc00::3,fc00::2] {Type:1 Value : dead}'
+    parse(s9)
 
     
 
